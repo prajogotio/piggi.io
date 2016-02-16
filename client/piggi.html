@@ -1,5 +1,8 @@
 <html>
 <head>
+	<link rel="stylesheet" href="piggi.css">
+	<title>piggi.io</title>
+	<script src="/socket.io/socket.io.js"></script>
 	<script src="Vec2.js"></script>
 	<script src="ds.js"></script>
 	<script src="qpath.js"></script>
@@ -8,14 +11,54 @@
 	<script src="chars.js"></script>
 	<script src="menu.js"></script>
 	<script src="piggi.js"></script>
-	<style>
-	body{
-		margin:0;
-		padding:0;
-	}
-	</style>
 </head>
 <body>
-	<canvas id="canvas" width="1152" height="640" style="position:absolute;width:100%"></canvas>
+	<div id="loading-frame" class="app-frame">
+		<div class="loading-info">
+			<div>piggi.io</div>
+			<div id="loading-caption">0%</div>
+		</div>
+	</div>
+
+	<div id="login-frame" class="app-frame">
+		<div class="login-info">
+			<div class="login-title">piggi.io</div>
+			<div>
+				<div class="float-left login-label">Login as:</div>
+				<input type="text" id="login-input" class="login-input float-left">
+				<div class="clear-fix"></div>
+			</div>
+		</div>
+		<div class="footer">piggi.io, written by <a href="https://prajogotio.github.io" style="text-decoration:none;color:black">prajogo tio</a>. 2016</div>
+	</div>
+
+	<div id="lobby-frame" class="app-frame">
+		<div id="room-list"></div>
+		<div id="online-user-list"></div>
+		<div class="lobby-options">
+			<div id="single-player" class="button">Single Player</div>
+			<div id="create-room" class="button">Create Room</div>
+			<div id="match-make" class="button">Match Make</div>			
+		</div>
+
+		<div>
+			<div>Create Room</div>
+			<div>
+				<div>Room Title: </div><input type="text" id="room-title">
+			</div>
+			<div>
+				<div id="create-room-submit" class="button">Create</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="room-frame" class="app-frame">
+		
+		<div class="button">Exit Room</div>
+	</div>
+
+	<div id="game-frame" class="app-frame">
+		<canvas id="canvas" width="1152" height="640" class="game-canvas"></canvas>
+	</div>
 </body>
 </html>

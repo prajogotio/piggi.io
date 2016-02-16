@@ -5,7 +5,6 @@ var io = require('socket.io')(http);
 
 var serverState = {
 	nextId : 1,
-	connected : [],
 };
 
 app.use(express.static('client'));
@@ -16,10 +15,26 @@ app.get('/', function(req, res) {
 
 
 io.on('connection', function(socket) {
-	console.log('a user connected');
+	var currentId = serverState.nextId;
+	serverState.nextId++;
+
+	console.log('connected - [id: '+currentId+']');
+
+	
 
 	// connected to server.
-	// login to 
+	// get a nickname
+	socket.on('login-name', function(msg) {
+
+	});
+
+	socket.on('disconnect', function() {
+
+	});
+
+	// create/choose room
+	// play
+	// game synch
 
 });
 

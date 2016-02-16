@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", function() {
 	initializeApp();
 });
 
+var socket = io();
 
 var asset = {
 	assetImageList : [
@@ -104,11 +105,23 @@ var clientState = {
 	team : 0,
 	menuBar : null,
 	gameEventHandlerResetFunction : null,
+	state : 'NONE',	// game state
+	appState : 'LOADING_FRAME', // app state
 }
+
+var appFrames = {};
 
 function initializeApp() {
 	clientState.canvas = document.getElementById("canvas");
 	clientState.g = clientState.canvas.getContext("2d");
+
+	appFrames['LOADING_FRAME'] = document.getElementById('loading-frame');
+	appFrames['LOGIN_FRAME'] = document.getElementById('login-frame');
+	appFrames['LOBBY_FRAME'] = document.getElementById('lobby-frame');
+	appFrames['ROOM_FRAME'] = document.getElementById('room-frame');
+	appFrames['GAME_FRAME'] = document.getElementById('game-frame');
+
+
 	initializeAsset();
 }
 
@@ -150,6 +163,8 @@ function initializeAsset() {
 }
 
 function assetProgressHandler() {
+	var lp = document.getElementById('loading-caption');
+	lp.innerHTML = Math.floor(asset.loadedAssetCount / (asset.assetImageList.length + asset.assetSoundList.length) * 100) + '%';
 	if (asset.loadedAssetCount == asset.assetImageList.length + asset.assetSoundList.length) {
 		allAssetsLoadedHandler();
 	}
@@ -163,10 +178,12 @@ function allAssetsLoadedHandler() {
 
 	registerAppEventHandler();
 
-	startGame();
+	//startGame();
+	appMoveToState('LOGIN_FRAME');
 }
 
 function startGame() {
+	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
 	// example game
 	gameState = createNewGame(20, 32, "asset/grass01.jpg");
 	gameState.thrones.push(new Throne(0, 0, 0), new Throne(30, 18, 1));
@@ -239,11 +256,11 @@ function updateCamera() {
 	if (mouse[1] >= canvas.height-margin-32) {
 		camera[1] += dM;
 	}
-
+	var overflowMargin = 180;
 	if (camera[0] < 0) camera[0] = 0;
 	if (camera[1] < 0) camera[1] = 0;
 	camera[0] = Math.min(camera[0], gameState.map.size*gameState.map.width-clientState.canvas.width);
-	camera[1] = Math.min(camera[1], gameState.map.size*gameState.map.height-clientState.canvas.height);
+	camera[1] = Math.min(camera[1], gameState.map.size*gameState.map.height+overflowMargin-clientState.canvas.height);
 }
 
 function renderGame() {
@@ -253,7 +270,8 @@ function renderGame() {
 	var map = gameState.map;
 
 	g.clearRect(0, 0, canvas.width, canvas.height);
-
+	g.fillStyle = 'rgba(0,0,0,0.8)';
+	g.fillRect(0, 0, canvas.width, canvas.height);
 	// render map
 	g.drawImage(map.imgBuffer,
 		Math.max(0,camera[0]),
@@ -415,7 +433,7 @@ function registerAppEventHandler() {
 	var canvas = clientState.canvas;
 	var map = gameState.map;
 
-	document.addEventListener("mousedown", mouseDownCallback);
+	canvas.addEventListener("mousedown", mouseDownCallback);
 
 	// Hook pointer lock state change events
 	document.addEventListener('pointerlockchange', changeCallback, false);
@@ -472,6 +490,16 @@ function registerAppEventHandler() {
 		}
 	}
 
+
+	var loginInput = document.getElementById('login-input');
+	loginInput.addEventListener('keydown', function(e) {
+		if (e.which == 13) {
+			var name = loginInput.value;
+			socket.emit('login-name', name);
+			appMoveToState('LOBBY_FRAME');
+			return false;
+		}
+	});
 }
 
 
@@ -507,8 +535,8 @@ function registerGameEventHandler() {
 				if (!isLandOccupied(pos[0], pos[1], clientState.buildingSize)) {
 					clientState.state = 'NONE';
 					issueCommand(clientState.currentCommand, [pos[0], pos[1], clientState.team]);
+					clientState.menuBar.reset();
 				}
-				clientState.menuBar.reset();
 			}
 		}
 		else if (e.buttons == 2) {
@@ -754,4 +782,17 @@ function renderMenuBar() {
 
 function isClientInTeam(team) {
 	return clientState.team == team;
+}
+
+
+
+// APP GUI codes
+function appMoveToState(state) {
+	appFrames[clientState.appState].style.setProperty('display', 'none');
+	appFrames[state].style.setProperty('display', 'block');
+	clientState.appState = state;
+
+	if (state == 'LOGIN_FRAME') {
+		document.getElementById('login-input').focus();
+	}
 }
