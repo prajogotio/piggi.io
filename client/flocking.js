@@ -579,7 +579,7 @@ FlockPrite.prototype.setPath = function(path) {
 }
 
 FlockPrite.prototype.createSnapshot = function() {
-	console.log('babi: ', gameState.timestep);
+	//console.log('babi: ', gameState.timestep);
 	this.snapshot = {
 		pos : this.pos.copy(),
 		force : this.force.copy(),
