@@ -55,7 +55,7 @@ function Tower(row, col, team) {
 
 	this.type = this.ATTACK_TYPE;
 	this.attackRadius = 300;
-	this.ATTACK_DELAY = 200;
+	this.ATTACK_DELAY = 200/CONSTANTS.SCALER;
 	this.healthPoints = this.maxHealthPoints = 500;
 	this.strength = 80;
 	this.team = team;
@@ -93,7 +93,7 @@ function Castle(row, col, team) {
 
 	this.type = this.ATTACK_TYPE;
 	this.attackRadius = 400;
-	this.ATTACK_DELAY = 120;
+	this.ATTACK_DELAY = 120/CONSTANTS.SCALER;
 	this.strength = 250;
 	this.healthPoints = this.maxHealthPoints = 1800;
 	this.team = team;
@@ -119,13 +119,13 @@ function Farm(row, col, team) {
 	this.interactionType = this.EAT_TYPE;
 	this.SHOW_HEALTHBAR = false;
 	this.healthPoints = 200;
-	this.PERSISTENCE = 300;
+	this.PERSISTENCE = 300/CONSTANTS.SCALER;
 	this.MAX_INTERACTION = 2;
 	this.radius = 0;
 
 	this.coinsToHarvest = 1;
 	this.lastProduce = 0;
-	this.PRODUCE_DELAY = 200;
+	this.PRODUCE_DELAY = 200/CONSTANTS.SCALER;
 }
 
 Farm.prototype = Object.create(Building.prototype);
@@ -163,12 +163,12 @@ function Garden(row, col, team) {
 	this.interactionType = this.EAT_TYPE;
 	this.SHOW_HEALTHBAR = false;
 	this.healthPoints = 550;
-	this.PERSISTENCE = 300;
+	this.PERSISTENCE = 300/CONSTANT.SCALER;
 	this.MAX_INTERACTION = 2;
 	this.radius = 0;
 
 	this.coinsToHarvest = 3;
-	this.PRODUCE_DELAY = 250;
+	this.PRODUCE_DELAY = 250/CONSTANTS.SCALER;
 }
 
 Garden.prototype = Object.create(Farm.prototype);
@@ -231,7 +231,7 @@ function PigRanch(row, col, team) {
 	this.MAX_INTERACTION = 8;
 
 	this.lastProduce = 0;
-	this.PRODUCE_DELAY = 600;
+	this.PRODUCE_DELAY = 600/CONSTANTS.SCALER;
 	this.pigsPerProduction = 1;
 
 	this.product = Pig;
@@ -291,7 +291,7 @@ function PigHQ(row, col, team) {
 	this.MAX_INTERACTION = 8;
 
 	this.lastProduce = 0;
-	this.PRODUCE_DELAY = 600;
+	this.PRODUCE_DELAY = 600/CONSTANTS.SCALER;
 	this.pigsPerProduction = 1;
 
 	this.product = Boar;
@@ -329,7 +329,7 @@ function Arrow(owner, target, damage) {
 	this.damage = damage;
 	this.orientation = getAngle(target.pos.minus(owner.pos));
 	this.updateCount = 0;
-	this.maxDelta = 40;
+	this.maxDelta = 40/CONSTANTS.SCALER;
 }
 
 Arrow.prototype = Object.create(FlockPrite.prototype);
@@ -377,7 +377,7 @@ function Javelin(owner, target, damage) {
 	this.damage = damage;
 	this.orientation = getAngle(target.pos.minus(owner.pos));
 	this.updateCount = 0;
-	this.maxDelta = 40;
+	this.maxDelta = 40/CONSTANTS.SCALER;
 }
 
 Javelin.prototype = Object.create(Arrow.prototype);

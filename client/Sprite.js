@@ -1,5 +1,5 @@
 function Sprite(imgBuffer, offsetX, offsetY, width, height, numOfFrames, deltaPerFrame) {
-	this.DELTA_PER_FRAME = deltaPerFrame;
+	this.DELTA_PER_FRAME = Math.ceil(deltaPerFrame / CONSTANTS.SCALER);
 	this.delta = 0;
 	this.currentFrame = 0;
 	this.numOfFrames = numOfFrames;

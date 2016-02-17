@@ -11,10 +11,10 @@ function Flocker(mass, pos, radius) {
 	this.FLOCK_AGGRESIVENESS = 200;
 	this.BUILDING_AGGRESIVENESS = 640;
 	this.RADIUS_OF_ACCEPTANCE = 4;
-	this.MAXIMUM_SPEED = 1.5;
-	this.AVOIDANCE_SPEED = 1.5;
+	this.MAXIMUM_SPEED = 1.5 * CONSTANTS.SCALER;
+	this.AVOIDANCE_SPEED = 1.5 * CONSTANTS.SCALER;
 	this.TARGET_RADIUS = 64;
-	this.steeringEffect = 2.4;
+	this.steeringEffect = 2.4 * CONSTANTS.SCALER;
 	this.attackRadius = 32;
 	this.MOVING_TARGET = true;
 
@@ -43,7 +43,7 @@ function Flocker(mass, pos, radius) {
 	// attack state
 	this.lockOnTarget = null;
 	this.lastAttack = 0;
-	this.ATTACK_DELAY = 80;
+	this.ATTACK_DELAY = 80 / CONSTANTS.SCALER;
 
 
 
@@ -57,8 +57,12 @@ function Flocker(mass, pos, radius) {
 	this.provoked = false;
 
 	// for rendering after death
-	this.PERSISTENCE = 1000;
+	this.PERSISTENCE = 1000 / CONSTANTS.SCALER;
 	this.timeOfDeath = -1;
+
+	this.INTEGRATE_ONLY_MAX_COUNTER = 10 / CONSTANTS.SCALER;
+	this.integrateOnlyCounter = 10 / CONSTANTS.SCALER;
+
 }
 
 Flocker.prototype.seek = function() {
@@ -114,6 +118,11 @@ Flocker.prototype.getInteractionType = function(flock) {
 Flocker.prototype.update = function(flock, map) {
 	this.updateCount++;
 	if (!this.isAlive) return;
+	var integrateOnly = this.integrateOnlyCounter != 0;
+	this.integrateOnlyCounter--;
+	if (this.integrateOnlyCounter == 0) {
+		this.integrateOnlyCounter = this.INTEGRATE_ONLY_MAX_COUNTER;
+	}
 
 	var seperation = 1.0;
 	var alignment = 0.04;
@@ -127,44 +136,46 @@ Flocker.prototype.update = function(flock, map) {
 	// seek
 	this.seek();
 
-
-	// separation
 	var expos = this.pos.plus(this.velocity.times(deltaT));
-	for (var j = 0; j < flock.length; ++j) {
-		if (this == flock[j]) continue;
-		var dij = this.pos.minus(flock[j].pos);
-		if (dij.length() < radius) {
-			var diff = expos.minus(flock[j].pos).normalize();
-			if (diff.length() == 0) {
-				diff = new Vec2(1, j);
-				diff.normalize();
+	if (!integrateOnly) {
+		// separation
+		for (var j = 0; j < flock.length; ++j) {
+			if (this == flock[j]) continue;
+			var dij = this.pos.minus(flock[j].pos);
+			if (dij.length() < radius) {
+				var diff = expos.minus(flock[j].pos).normalize();
+				if (diff.length() == 0) {
+					diff = new Vec2(1, j);
+					diff.normalize();
+				}
+				var flee = diff.times(this.AVOIDANCE_SPEED * seperation);
+				this.steeringForce = this.steeringForce.plus(flee);
 			}
-			var flee = diff.times(this.AVOIDANCE_SPEED * seperation);
-			this.steeringForce = this.steeringForce.plus(flee);
 		}
-	}
 
-	avoidance
-	var k = -1;	// to avoid
-	var dist = 1e9;
-	for (var j = 0; j < flock.length; ++j) {
-		if (this == flock[j]) continue;
-		var jexpos = flock[j].pos.plus(flock[j].velocity.times(deltaT));
-		var d = expos.minus(jexpos).length();
-		if (dist > d) {
-			k = j;
-			dist = d;
+		//avoidance
+		var k = -1;	// to avoid
+		var dist = 1e9;
+		for (var j = 0; j < flock.length; ++j) {
+			if (this == flock[j]) continue;
+			var jexpos = flock[j].pos.plus(flock[j].velocity.times(deltaT));
+			var d = expos.minus(jexpos).length();
+			if (dist > d) {
+				k = j;
+				dist = d;
+			}
 		}
-	}
 
-	if (k != -1) {
-		if (dist <= flock[k].radius) {
-			var F = expos.minus(flock[k].pos.plus(flock[k].velocity.times(deltaT)));
-			F = F.normalize().times(this.AVOIDANCE_SPEED*avoidance);
-			this.force = this.force.plus(F);
+		if (k != -1) {
+			if (dist <= flock[k].radius) {
+				var F = expos.minus(flock[k].pos.plus(flock[k].velocity.times(deltaT)));
+				F = F.normalize().times(this.AVOIDANCE_SPEED*avoidance);
+				this.force = this.force.plus(F);
+			}
 		}
+
 	}
-	
+		
 	// avoidance with map
 	if (map) {
 		k = -1;
@@ -182,20 +193,23 @@ Flocker.prototype.update = function(flock, map) {
 
 	this.integrate(map);
 
-	//alignment
-	var aveOrient = 0;
-	var count = 0;
-	for (var j = 0; j < flock.length; ++j) {
-		//if (this==flock[j]) continue;
-		var dij = this.pos.minus(flock[j].pos);
-		if (dij.length() < radius) {
-			aveOrient += flock[j].orientation;
-			count++;
+	if (integrateOnly){
+		//alignment
+		var aveOrient = 0;
+		var count = 0;
+		for (var j = 0; j < flock.length; ++j) {
+			//if (this==flock[j]) continue;
+			var dij = this.pos.minus(flock[j].pos);
+			if (dij.length() < radius) {
+				aveOrient += flock[j].orientation;
+				count++;
+			}
 		}
-	}
-	if (count > 0) {
-		aveOrient /= count;
-		this.orientation = (1-alignment) * this.orientation + alignment * aveOrient;
+		if (count > 0) {
+			aveOrient /= count;
+			this.orientation = (1-alignment) * this.orientation + alignment * aveOrient;
+		}
+
 	}
 
 	// flock and map correction
@@ -323,6 +337,7 @@ Flocker.prototype.handleLockOnTarget = function(flock, map) {
 				else if (this.updateCount - this.lastAttack == -2*this.sprites[this.ATTACKING].DELTA_PER_FRAME) {
 					// on the last frame of attack animation, reduce enemy hitpoints
 					this.lockOnTarget.receiveDamage(this.strength);
+					this.velocity = this.velocity.times(0);
 				}
 			} 
 
@@ -331,6 +346,7 @@ Flocker.prototype.handleLockOnTarget = function(flock, map) {
 				if (this.updateCount - this.lastAttack > this.ATTACK_DELAY) {
 					this.lockOnTarget.receiveDamage(this.strength);
 					this.lastAttack = this.updateCount;
+					this.velocity = this.velocity.times(0);
 				}
 			}
 		} else if (!this.target ) {
@@ -582,6 +598,7 @@ FlockPrite.prototype.createSnapshot = function() {
 		isAlive : this.isAlive,
 		provoked : this.provoked,
 		timeOfDeath : this.timeOfDeath,
+		integrateOnlyCounter : this.integrateOnlyCounter,
 	};
 	this.sprites[this.state].createSnapshot();
 }
@@ -604,6 +621,7 @@ FlockPrite.prototype.rollback = function() {
 	this.isAlive = this.snapshot.isAlive;
 	this.provoked = this.snapshot.provoked;
 	this.timeOfDeath = this.snapshot.timeOfDeath;
+	this.integrateOnlyCounter = this.snapshot.integrateOnlyCounter;
 	this.sprites[this.state].rollback();
 }
 

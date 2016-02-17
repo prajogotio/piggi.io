@@ -225,7 +225,7 @@ io.on('connection', function(socket) {
 	socket.on('commands', function(msg) {
 		setTimeout(function() {
 			sendToOtherPlayerInRoom('commands', msg);
-		}, 500);
+		}, Math.random()*500+400);
 	});
 });
 

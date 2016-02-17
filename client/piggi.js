@@ -93,6 +93,8 @@ var PRICES = {
 var CONSTANTS = {
 	BACKGROUND_MONEY_RATE : 300, // timesteps per 1 coin
 	MAX_COINS : 9999,
+	FPS : 1000/30,
+	SCALER : 1.5,
 }
 
 var gameState = {
@@ -217,7 +219,7 @@ function startGame() {
 		drawMouse();
 
 		sendCommandLog();
-	}, 1000/60);
+	}, CONSTANTS.FPS);
 }
 
 function createNewGame(mapWidth, mapHeight, mapURI) {
@@ -261,7 +263,7 @@ function updateCamera() {
 	var mouse = clientState.mouse;
 	var camera = clientState.camera;
 
-	var dM = 10;
+	var dM = 10*CONSTANTS.SCALER;
 	var margin = 4;
 	if (mouse[0] <= margin) {
 		camera[0] -= dM;
@@ -1395,7 +1397,32 @@ var exec = [0, 0]
 function testModule() {
 	for(var t = 0; t < 2; ++t) {
 		if (clientState.team == t) {
-			if (exec[t] >= cmd[t].length) break;
+			if (exec[t] >= cmd[t].length) {
+				delay[t] = 300;
+				if (gameState.timestep - lastupdate[t] <= delay[t]) continue;
+				lastupdate[t] = gameState.timestep;
+				if (true){
+					var r = Math.floor(Math.random()*gameState.map.height);
+					var c = Math.floor(Math.random()*gameState.map.width);
+					var t = Math.random();
+					var bs = 1;
+					if (t < 0.2) {
+						t = COMMAND.BUILD_PIG_RANCH;
+						bs = 2;
+					} else if (t < 0.4) {
+						t = COMMAND.BUILD_TOWER;
+						bs = 2;
+					} else if (t < 0.8) {
+						t = COMMAND.BUILD_FARM;
+					} else {
+						t = COMMAND.BUILD_FENCE;
+					}
+					if (!isLandOccupied(r, c, bs)) {
+						issueCommand(t, [r, c, clientState.team]);
+					}
+				}
+				break;
+			}
 			if (gameState.timestep - lastupdate[t] <= delay[t]) continue;
 			lastupdate[t] = gameState.timestep;
 			issueCommand(cmd[t][exec[t]][0], cmd[t][exec[t]][1]);
