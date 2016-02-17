@@ -33,32 +33,52 @@
 	</div>
 
 	<div id="lobby-frame" class="app-frame">
-		<div id="room-list"></div>
-		<div id="online-user-list"></div>
+		
 		<div class="lobby-options">
 			<div id="single-player" class="button">Single Player</div>
 			<div id="create-room" class="button">Create Room</div>
 			<div id="match-make" class="button">Match Make</div>			
 		</div>
+		<div>Rooms</div>
+		<div id="room-list"></div>
+		<div>Online Users</div>
+		<div id="online-user-list"></div>
 
-		<div>
+		<div id="create-room-form">
 			<div>Create Room</div>
 			<div>
 				<div>Room Title: </div><input type="text" id="room-title">
 			</div>
 			<div>
 				<div id="create-room-submit" class="button">Create</div>
+				<div id="create-room-cancel" class="button">Cancel</div>
 			</div>
 		</div>
 	</div>
 
 	<div id="room-frame" class="app-frame">
-		
+		<div>
+			<div>Room Info</div>
+			<div>Room ID:</div>
+			<div>Room Title</div>
+		</div>
+		<div>
+			<div>Player List</div>
+			<div id="host">
+			</div>
+			<div id="guest">
+			</div>
+		</div>
+		<div id="start-game-button" class="button">Start Game</div>
 		<div class="button">Exit Room</div>
 	</div>
 
 	<div id="game-frame" class="app-frame">
 		<canvas id="canvas" width="1152" height="640" class="game-canvas"></canvas>
+	</div>
+
+	<div id="waiting-screen">
+		<div id="waiting-text">Loading..</div>
 	</div>
 </body>
 </html>

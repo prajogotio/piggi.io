@@ -525,6 +525,11 @@ FlockPrite.prototype.setSprite = function(type, sprite) {
 	this.sprites[type] = sprite;
 }
 
+FlockPrite.prototype.update = function(flock, map) {
+	Flocker.prototype.update.call(this, flock, map);
+	this.sprites[this.state].update();
+}
+
 FlockPrite.prototype.render = function(g) {
 	g.save();
 	if (!this.isAlive) {
@@ -556,6 +561,50 @@ FlockPrite.prototype.setPath = function(path) {
 	} else if (this.targetStack[0] != null && this.pos.minus(this.targetStack[0]).length() >= this.radius*4){
 		this.state = this.MOVING;
 	}
+}
+
+FlockPrite.prototype.createSnapshot = function() {
+	this.snapshot = {
+		pos : this.pos.copy(),
+		force : this.force.copy(),
+		steeringForce : this.steeringForce.copy(),
+		velocity : this.velocity.copy(),
+		orientation : this.orientation,
+		target : this.target,
+		targetStack : this.targetStack.slice(),
+		pathTimestamp : this.pathTimestamp,
+		state : this.state,
+		lastEnvironmentCheck : this.lastEnvironmentCheck,
+		updateCount : this.updateCount,
+		lockOnTarget : this.lockOnTarget,
+		lastAttack : this.lastAttack,
+		healthPoints : this.healthPoints,
+		isAlive : this.isAlive,
+		provoked : this.provoked,
+		timeOfDeath : this.timeOfDeath,
+	};
+	this.sprites[this.state].createSnapshot();
+}
+
+FlockPrite.prototype.rollback = function() {
+	this.pos = this.snapshot.pos.copy();
+	this.force = this.snapshot.force.copy();
+	this.steeringForce = this.snapshot.steeringForce.copy();
+	this.velocity = this.snapshot.velocity.copy();
+	this.orientation = this.snapshot.orientation;
+	this.target = this.snapshot.target;
+	this.targetStack = this.snapshot.targetStack;
+	this.pathTimestamp = this.snapshot.pathTimestamp;
+	this.state = this.snapshot.state;
+	this.lastEnvironmentCheck = this.snapshot.lastEnvironmentCheck;
+	this.updateCount = this.snapshot.updateCount;
+	this.lockOnTarget = this.snapshot.lockOnTarget;
+	this.lastAttack = this.snapshot.lastAttack;
+	this.healthPoints = this.snapshot.healthPoints;
+	this.isAlive = this.snapshot.isAlive;
+	this.provoked = this.snapshot.provoked;
+	this.timeOfDeath = this.snapshot.timeOfDeath;
+	this.sprites[this.state].rollback();
 }
 
 
@@ -669,6 +718,7 @@ Building.prototype.receiveDamage = function(dmg) {
 
 Building.prototype.update = function(flock, map) {
 	this.updateCount++;
+	this.sprites[this.state].update();
 }
 
 Building.prototype.cleanUp = function(flock, map) {
@@ -677,4 +727,29 @@ Building.prototype.cleanUp = function(flock, map) {
 
 Building.prototype.garbageCollectible = function() {
 	return Flocker.prototype.garbageCollectible.call(this);
+}
+
+
+Building.prototype.createSnapshot = function() {
+	this.snapshot = {
+		state: this.state,
+		lastAttack : this.lastAttack,
+		healthPoints : this.healthPoints,
+		isAlive : this.isAlive,
+		updateCount : this.updateCount,
+		interactionCount : this.interactionCount,
+		timeOfDeath : this.timeOfDeath,
+	}
+	this.sprites[this.state].createSnapshot();
+}
+
+Building.prototype.rollback = function() {
+	this.state = this.snapshot.state;
+	this.lastAttack = this.snapshot.lastAttack;
+	this.healthPoints = this.snapshot.healthPoints;
+	this.isAlive = this.snapshot.isAlive;
+	this.updateCount = this.snapshot.updateCount;
+	this.timeOfDeath = this.snapshot.timeOfDeath;
+	this.interactionCount = this.snapshot.interactionCount;
+	this.sprites[this.state].rollback();
 }

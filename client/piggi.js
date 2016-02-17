@@ -74,6 +74,7 @@ var COMMAND = {
 	'BUILD_GARDEN' : 9,
 	'BUILD_PIG_HQ' : 10,
 	'BUILD_WALL' : 11,
+	'SYNCHRONIZED' : 12,
 }
 
 var PRICES = {
@@ -107,6 +108,14 @@ var clientState = {
 	gameEventHandlerResetFunction : null,
 	state : 'NONE',	// game state
 	appState : 'LOADING_FRAME', // app state
+	online : [],
+	player : {},
+	room : {},
+	roomList : [],
+	playingWithId : null,
+	currentRoom : null,
+	isHost : false,
+	isGameOngoing : false,
 }
 
 var appFrames = {};
@@ -190,10 +199,16 @@ function startGame() {
 
 	clientState.menuBar = new MenuBar();
 
+	//clientState.camera[0] = gameState.thrones[clientState.team].pos.x-clientState.canvas.width/2;
+	//clientState.camera[1] = gameState.thrones[clientState.team].pos.y-clientState.canvas.height/2;
+
 	clientState.gameEventHandlerResetFunction = registerGameEventHandler();
+	
+	createSnapshot();
 	gameState.scheduler = setInterval(function() {
 		// game routine
-		handleLocalCommand();
+		testModule();
+		handleCommands();
 		updateGame();
 		updateCamera();
 		renderGame();
@@ -201,8 +216,8 @@ function startGame() {
 		renderMenuBar();
 		drawMouse();
 
+		sendCommandLog();
 	}, 1000/60);
-
 }
 
 function createNewGame(mapWidth, mapHeight, mapURI) {
@@ -227,13 +242,17 @@ function createNewGame(mapWidth, mapHeight, mapURI) {
 		arrows : [],
 
 		timestep : 0,
-		localCommandLog : [],
 
 		// team information
 		thrones : [],
 		ranchTier : [1, 1],
 		towerTier : [1, 1],
-		coins : [10, 10],
+		coins : [1000, 1000],
+
+		lastSynchronized : 0,
+		lastSent : 0,
+		localCommandLog : [],
+		commandBackLog : [[], []],
 	}
 	return state;
 }
@@ -343,7 +362,7 @@ function updateGame() {
 		}
 	}
 
-	var all = [gameState.deadbuildings, gameState.deadflocks, gameState.deadarrows, gameState.flocks, gameState.buildings, gameState.arrows];
+	var all = [gameState.deadbuildings, gameState.deadflocks, gameState.deadarrows, gameState.flocks, gameState.buildings, gameState.arrows, gameState.thrones];
 
 	for(var i = 0; i < all.length; ++i) {
 		for(var j = 0; j < all[i].length; ++j){
@@ -354,6 +373,10 @@ function updateGame() {
 	garbageCollection();
 	for (var i = 0; i < gameState.coins.length; ++i) {
 		gameState.coins[i] = Math.min(gameState.coins[i], CONSTANTS.MAX_COINS);
+	}
+
+	if (gameState.timestep == gameState.lastSynchronized) {
+		createSnapshot();
 	}
 
 	gameState.timestep++;
@@ -500,6 +523,163 @@ function registerAppEventHandler() {
 			return false;
 		}
 	});
+
+	document.getElementById('create-room').addEventListener('click', function() {
+		document.getElementById('create-room-form').style.display = 'block';
+		document.getElementById('room-title').value = '';
+		document.getElementById('room-title').focus();
+	});
+
+	document.getElementById('create-room-cancel').onclick = function() {
+		document.getElementById('create-room-form').style.display = 'none';
+	}
+	document.getElementById('room-title').addEventListener('keydown', function(e) {
+		if (e.which==13) {
+			createRoom(document.getElementById('room-title').value);
+			document.getElementById('create-room-form').style.display = 'none';
+			return false;
+		}
+	});
+	document.getElementById('create-room-submit').addEventListener('click', function(e) {
+		createRoom(document.getElementById('room-title').value);
+		document.getElementById('create-room-form').style.display = 'none';
+	});
+
+	document.getElementById('start-game-button').addEventListener('click', function() {
+		if (clientState.isHost) {
+			socket.emit('request-start-game');
+		}
+	})
+
+
+	socket.on('online', function(msg) {
+		clientState.online.push(msg.id);
+		clientState.player[msg.id] = msg;
+		displayOnlineList(msg);
+	});
+
+	socket.on('new-room', function(msg) {
+		clientState.room[msg.id] = msg;
+		clientState.roomList.push(msg.id);
+		displayRoomList(msg);
+	});
+
+	socket.on('room-list', function(msg) {
+		clientState.roomList = [];
+		clientState.room = {};
+		for (var i = 0; i < msg.length; ++i) {
+			clientState.roomList.push(msg[i].id);
+			clientState.room[msg[i].id] = msg[i];
+		}
+		displayRoomList();
+	});
+
+	socket.on('online-player', function(msg) {
+		clientState.online = [];
+		for (var i = 0; i < msg.length; ++i) {
+			clientState.online.push(msg[i].id);
+			clientState.player[msg[i].id] = msg[i];
+		}
+		displayOnlineList();
+	});
+
+	socket.on('offline', function(msg) {
+		removeFromOnlineList(msg);
+		displayOnlineList();
+	});
+
+	socket.on('room-created', function(msg) {
+		clientState.room[msg.id] = msg;
+		clientState.roomList.push(msg.id);
+		clientState.currentRoom = msg;
+		clientState.isHost = true;
+		appMoveToState('ROOM_FRAME');
+	});
+
+	socket.on('room-full', function(roomId) {
+		clientState.room[roomId].full = true;
+		refreshRoomItem(clientState.room[roomId]);
+		
+		if (clientState.enteringRoomId == msg) {
+			displayErrorMessage('Room is currently full');
+		}
+	});
+
+	socket.on('room-available', function(roomId) {
+		clientState.room[roomId].full = false;
+		refreshRoomItem(clientState.room[roomId]);
+	});
+
+	socket.on('room-exited', function(playerId){
+		if (clientState.room) {
+			if (clientState.room.guestId == playerId) {
+				clientState.room.guestId = -1;
+				refreshRoomPlayerList();
+			}
+		}
+	});
+
+	socket.on('room-unavailable', function(roomId) {
+		if (clientState.enteringRoomId == roomId) {
+			displayErrorMessage('Room is currently unavailable');
+			hideWaitingScreen();
+		}
+	});
+
+	socket.on('room-joined', function(roomId) {
+		if (roomId == clientState.enteringRoomId) {
+			clientState.room = clientState.room[roomId];
+			clientState.playingWithId = clientState.room.hostId;
+			appMoveToState('ROOM_FRAME');
+			hideWaitingScreen();
+		}
+	});
+
+	socket.on('room-visitor', function(guestId) {
+		if (clientState.room) {
+			clientState.room.guestId = guestId;
+			clientState.playingWithId = guestId;	
+			refreshRoomPlayerList();	
+		}
+	});
+
+	socket.on('room-deleted', function(roomId) {
+		var tmp = [];
+		for (var i = 0; i < clientState.roomList.length; ++i) {
+			var rid = clientState.roomList[i];
+			if (rid == roomId) continue;
+			tmp.push(rid);
+		}
+		clientState.roomList = tmp;
+		delete clientState.room[roomId];
+		displayRoomList();
+	});
+
+	socket.on('room-owner', function(roomId) {
+		if (clientState.room) {
+			if (clientState.room.id == roomId) {
+				clientState.isHost = true;
+				clientState.guestId = -1;
+			}
+		}
+	});
+
+	socket.on('start-game', function(msg) {
+		if (clientState.isHost) {
+			clientState.team = msg.host;
+		} else {
+			clientState.team = msg.guest;
+		}
+		clientState.isGameOngoing = true;
+		startGame();
+	});
+
+	socket.on('commands', function(msg) {
+		if (clientState.isGameOngoing) {
+			handleReceiveCommandEvent(msg);
+		}
+	});
+
 }
 
 
@@ -534,8 +714,8 @@ function registerGameEventHandler() {
 				var pos = computeMapLocation(x, y);
 				if (!isLandOccupied(pos[0], pos[1], clientState.buildingSize)) {
 					clientState.state = 'NONE';
-					issueCommand(clientState.currentCommand, [pos[0], pos[1], clientState.team]);
 					clientState.menuBar.reset();
+					issueCommand(clientState.currentCommand, [pos[0], pos[1], clientState.team]);
 				}
 			}
 		}
@@ -618,7 +798,7 @@ function registerGameEventHandler() {
 		}
 
 		else if (e.which == 68) {
-			// 'Q'
+			// 'D'
 			clientState.menuBar.deselect.onclick();
 		}
 
@@ -626,20 +806,11 @@ function registerGameEventHandler() {
 		else if (e.which == 66) {
 			// HELPER, REMOVE LATER
 			// generate pig
-			gameState.flocks.push(new Pig(new Vec2(x,y), clientState.team));
-		}
-
-		else if (e.which == 69) {
-			// HELPER REMOVE
-			gameState.coins[clientState.team] += 1000;
+			clearInterval(gameState.scheduler);
+			//gameState.flocks.push(new Pig(new Vec2(x,y), clientState.team));
 		}
 
 
-		else if (e.which == 13) {
-			// HELPER, REMOVE LATER
-			clientState.team++;
-			clientState.team %= 2;
-		}
 	}
 	
 
@@ -678,9 +849,10 @@ function computeMapLocation(x, y) {
 
 function issueCommand(type, params) {
 	gameState.localCommandLog.push([gameState.timestep, type, params]);
+	gameState.commandBackLog[clientState.team].push([gameState.timestep, type, params]);
 }
 
-function executeCommand(c) {
+function executeCommand(c, isRedoingCommandLog) {
 	var timestep = c[0];
 	var type = c[1];
 	var params = c[2];
@@ -688,28 +860,62 @@ function executeCommand(c) {
 		// params[0] row
 		// params[1] col
 		// params[2] team info
+		// if cannot build, return money
+		if (isLandOccupied(params[0], params[1], 2)) {
+			gameState.coins[params[2]] += PRICES['BUILD_TOWER'];
+			return;
+		}
+
 		gameState.buildings.push(new Tower(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_FARM) {
+		if (isLandOccupied(params[0], params[1], 1)) {
+			gameState.coins[params[2]] += PRICES['BUILD_FARM'];
+			return;
+		}
 		gameState.buildings.push(new Farm(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_FENCE) {
+		if (isLandOccupied(params[0], params[1], 1)) {
+			gameState.coins[params[2]] += PRICES['BUILD_FENCE'];
+			return;
+		}
 		gameState.buildings.push(new Fence(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_PIG_RANCH) {
+		if (isLandOccupied(params[0], params[1], 2)) {
+			gameState.coins[params[2]] += PRICES['BUILD_PIG_RANCH'];
+			return;
+		}
 		gameState.buildings.push(new PigRanch(params[0], params[1], params[2]));
 	}
 
 	else if (type == COMMAND.BUILD_CASTLE) {
+		if (isLandOccupied(params[0], params[1], 2)) {
+			gameState.coins[params[2]] += PRICES['BUILD_CASTLE'];
+			return;
+		}
 		gameState.buildings.push(new Castle(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_GARDEN) {
+		if (isLandOccupied(params[0], params[1], 1)) {
+			gameState.coins[params[2]] += PRICES['BUILD_GARDEN'];
+			return;
+		}
 		gameState.buildings.push(new Garden(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_WALL) {
+		if (isLandOccupied(params[0], params[1], 1)) {
+			gameState.coins[params[2]] += PRICES['BUILD_WALL'];
+			return;
+		}
 		gameState.buildings.push(new Wall(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_PIG_HQ) {
+		if (isLandOccupied(params[0], params[1], 2)) {
+			gameState.coins[params[2]] += PRICES['BUILD_PIG_HQ'];
+			return;
+		}
 		gameState.buildings.push(new PigHQ(params[0], params[1], params[2]));
 	}
 
@@ -749,7 +955,7 @@ function executeCommand(c) {
 		if (gameState.coins[team] >= price) {
 			gameState.coins[team] -= price;
 
-			if (isClientInTeam(team)){
+			if (isClientInTeam(team) && !isRedoingCommandLog){
 				clientState.currentCommand = buildCmd;
 				clientState.state = 'BUILDING';
 				clientState.buildingSize = params[3];
@@ -761,6 +967,10 @@ function executeCommand(c) {
 		// params[0] : team info
 		// params[1] : price to release
 		gameState.coins[params[0]] += params[1];
+	}
+
+	else if (type == COMMAND.SYNCHRONIZED) {
+		gameState.lastSynchronized = gameState.timestep;
 	}
 }
 
@@ -774,6 +984,76 @@ function handleLocalCommand() {
 	}
 }
 
+
+function handleCommands () {
+	var other = (clientState.team + 1) % 2;
+	if (gameState.commandBackLog[other].length > 0 && gameState.commandBackLog[other][0][0] < gameState.timestep) {
+		// rollback because we have not executed enemy's commands on
+		// previous timesteps!
+		var currentTimestep = gameState.timestep;
+		rollback();
+
+		// gameState.timestep should point to latest synchronized time
+		var i = 0, j = 0;	// i and j will point to the next unexecuted command
+		var si = 0, sj = 0; // everything less than si and sj are synchronized
+		var backlog = gameState.commandBackLog;
+		
+		gameState.timestep++;
+		var i = 0, j = 0;
+		for (var time = gameState.timestep; time < currentTimestep; ++time) {
+			while (i < backlog[0].length && backlog[0][i][0] == time) {
+				executeCommand(backlog[0][i], true);
+				++i;
+			}
+			while (j < backlog[1].length && backlog[1][j][0] == time) {
+				executeCommand(backlog[1][j], true);
+				++j;
+			}
+			updateGame();
+			if (gameState.lastSynchronized == time) {
+				si = i;
+				sj = j;
+			}
+		}
+
+		gameState.commandBackLog[0] = gameState.commandBackLog[0].splice(si);
+		gameState.commandBackLog[1] = gameState.commandBackLog[1].splice(sj);
+
+	}
+
+
+	// we will execute the new time frame
+	var i = 0, j = 0;	// i and j will point to the next unexecuted command
+	var si = 0, sj = 0;
+	var synchronizationPoint = false;
+	var backlog = gameState.commandBackLog;
+	while (i < backlog[0].length) {
+		if (backlog[0][i][0] == gameState.timestep) {
+			
+			executeCommand(backlog[0][i]);
+			si = i+1;
+			if (backlog[0][i][1] == COMMAND.SYNCHRONIZED) {
+				synchronizationPoint = true;
+			}
+		}
+		++i;
+	}
+	while (j < backlog[1].length) {
+		if (backlog[1][j][0] == gameState.timestep) {
+
+			executeCommand(backlog[1][j]);
+			sj = j+1;
+			if (backlog[1][j][1] == COMMAND.SYNCHRONIZED) {
+				synchronizationPoint = true;
+			}
+		}
+		++j;
+	}
+	if (synchronizationPoint) {
+		gameState.commandBackLog[0] = gameState.commandBackLog[0].splice(si);
+		gameState.commandBackLog[1] = gameState.commandBackLog[1].splice(sj);
+	}
+}
 
 
 function renderMenuBar() {
@@ -794,5 +1074,332 @@ function appMoveToState(state) {
 
 	if (state == 'LOGIN_FRAME') {
 		document.getElementById('login-input').focus();
+	}
+	else if (state == 'LOBBY_FRAME') {
+		socket.emit('get-online-player');
+		socket.emit('get-room-list');
+	}
+	else if (state == 'ROOM_FRAME') {
+
+	}
+
+}
+
+function createRoom(roomTitle) {
+	socket.emit('create-room', roomTitle);
+}
+
+function displayRoomList(toAppend) {
+	if (toAppend) {
+		document.getElementById('room-list').appendChild(generateRoomItem(toAppend));
+	} else {
+		document.getElementById('room-list').innerHTML = '';
+		for (var i = 0; i < clientState.roomList.length; ++i) {
+			var rid = clientState.roomList[i];
+			var room = clientState.room[rid];
+			document.getElementById('room-list').appendChild(generateRoomItem(room));
+		}
+	}
+}
+
+function generateRoomItem(room) {
+	var div = document.createElement('div');
+	var html = "<div>"+room.id+"</div>";
+		html += "<div>"+room.title+"</div>";
+		html += "<div>"+room.hostId+"</div>";
+		html += "<div>"+room.hostname+"</div>";
+		html += "<div>"+(room.full?'Full':'')+"</div>";
+	div.innerHTML = html;
+	div.onclick = function() {
+		if (room.full) {
+			displayErrorMessage("Room is currently full.");
+		}
+		clientState.enteringRoomId = room.id;
+		socket.emit('join-room', room.id);
+		displayWaitingScreen();
+	}
+	div.setAttribute('class', 'room-item');
+	room.div = div;
+	return div;
+}
+
+function refreshRoomItem(room) {
+	var div = room.div;
+	var html = "<div>"+room.id+"</div>";
+		html += "<div>"+room.title+"</div>";
+		html += "<div>"+room.hostId+"</div>";
+		html += "<div>"+room.hostname+"</div>";
+		html += "<div>"+(room.full?'Full':'')+"</div>";
+	div.innerHTML = html;
+}
+
+function displayOnlineList(toAppend) {
+	if (toAppend) {
+		document.getElementById('online-user-list').appendChild(generateOnlineListItem(toAppend));
+	} else {
+		document.getElementById('online-user-list').innerHTML = '';
+		for (var i = 0; i < clientState.online.length; ++i) {
+			var id = clientState.online[i];
+			document.getElementById('online-user-list').appendChild(generateOnlineListItem(clientState.player[id]));
+		}
+	}
+}
+
+
+function generateOnlineListItem(player) {
+	var div = document.createElement('div');
+	var html = "<div>"+player.id+"</div>";
+		html += "<div>"+player.username+"</div>";
+	div.innerHTML = html;
+	div.setAttribute('class', 'online-list-item');
+	player.div = div;
+	return div;
+}
+
+function removeFromOnlineList(id) {
+	var tmp = [];
+	for (var i = 0; i < clientState.online.length; ++i){
+		if (clientState.online[i] == id) continue;
+		tmp.push(clientState.online[i]);
+	}
+	clientState.online = tmp;
+
+	if (clientState.playingWithId == id) {
+		gameHandlePlayerQuitEvent();
+	}
+
+	delete clientState.player[id];
+}
+
+function gameHandlePlayerQuitEvent() {
+
+}
+
+function displayErrorMessage(msg) {
+	
+}
+
+function displayWaitingScreen() {
+	document.getElementById('waiting-screen').style.display = 'block';
+}
+
+function hideWaitingScreen() {
+	document.getElementById('waiting-screen').style.display = 'none';
+}
+
+function refreshRoomPlayerList() {
+
+}
+
+
+
+
+function sendCommandLog() {
+	var DT = 500; // synchronize every timesteps
+	if (gameState.timestep - gameState.lastSent <= DT) return;
+	gameState.lastSent = gameState.timestep;
+	gameState.localCommandLog.push([gameState.timestep-1, COMMAND.SYNCHRONIZED, []]);
+	socket.emit('commands', gameState.localCommandLog);
+	gameState.localCommandLog = [];
+
+}
+
+function synchronize(cmd) {
+	
+
+}
+
+function createSnapshot() {
+	var snapshot = {
+		map : {
+			data : new Int32Array(gameState.map.width*gameState.map.height).fill(1),
+			entry : new Array(gameState.map.width*gameState.map.height).fill(null),
+			lastUpdated : 0,
+		},
+		deadflocks : [],
+		deadarrows : [],
+		deadbuildings : [],
+		flocks : [],
+		buildings : [],
+		arrows : [],
+		timestep : 0,
+		thrones : [],
+		ranchTier : [1, 1],
+		towerTier : [1, 1],
+		coins : [10, 10],
+	}
+
+	// map data
+	for (var i = 0; i < gameState.map.width * gameState.map.height; ++i) {
+		snapshot.map.data[i] = gameState.map.data[i];
+	}
+
+	// map entry
+	for (var i = 0; i < gameState.map.width * gameState.map.height; ++i) {
+		snapshot.map.entry[i] = gameState.map.entry[i];
+	}
+
+	snapshot.map.lastUpdated = gameState.map.lastUpdated;
+
+	for (var i = 0; i < gameState.deadflocks.length; ++i) {
+		snapshot.deadflocks.push(gameState.deadflocks[i]);
+		gameState.deadflocks[i].createSnapshot();
+	}
+
+	for (var i = 0; i < gameState.deadbuildings.length; ++i) {
+		snapshot.deadbuildings.push(gameState.deadbuildings[i]);
+		gameState.deadbuildings[i].createSnapshot();
+	}
+
+	for (var i = 0; i < gameState.deadarrows.length; ++i) {
+		snapshot.deadarrows.push(gameState.deadarrows[i]);
+		gameState.deadarrows[i].createSnapshot();
+	}
+
+	snapshot.timestep = gameState.timestep;
+
+	for (var i = 0; i < gameState.flocks.length; ++i) {
+		snapshot.flocks.push(gameState.flocks[i]);
+		gameState.flocks[i].createSnapshot();
+	}
+
+	for (var i = 0; i < gameState.buildings.length; ++i) {
+		snapshot.buildings.push(gameState.buildings[i]);
+		gameState.buildings[i].createSnapshot();
+	}
+
+	for (var i = 0; i < gameState.arrows.length; ++i) {
+		snapshot.arrows.push(gameState.arrows[i]);
+		gameState.arrows[i].createSnapshot();
+	}
+
+	for (var i = 0; i < gameState.thrones.length; ++i) {
+		snapshot.thrones.push(gameState.thrones[i]);
+		gameState.thrones[i].createSnapshot();
+	}
+
+	for (var i = 0; i < gameState.ranchTier.length; ++i) {
+		snapshot.ranchTier[i] = gameState.ranchTier[i];
+		snapshot.towerTier[i] = gameState.towerTier[i];
+		snapshot.coins[i] = gameState.coins[i];
+	}
+
+	gameState.snapshot = snapshot;
+
+}
+
+function rollback() {
+	snapshot = gameState.snapshot;
+
+	// map data
+	for (var i = 0; i < gameState.map.width * gameState.map.height; ++i) {
+		gameState.map.data[i] = snapshot.map.data[i];
+	}
+
+	// map entry
+	for (var i = 0; i < gameState.map.width * gameState.map.height; ++i) {
+		gameState.map.entry[i] = snapshot.map.entry[i];
+	}
+
+	gameState.map.lastUpdated = snapshot.map.lastUpdated;
+
+	gameState.deadflocks = snapshot.deadflocks;
+	for (var i = 0; i < gameState.deadflocks.length; ++i) {
+		gameState.deadflocks[i].rollback();
+	}
+
+	gameState.flocks = snapshot.flocks;
+	for (var i = 0; i < gameState.flocks.length; ++i) {
+		gameState.flocks[i].rollback();
+	}
+
+	gameState.deadbuildings = snapshot.deadbuildings;
+	for (var i = 0; i < gameState.deadbuildings.length; ++i) {
+		gameState.deadbuildings[i].rollback();
+	}
+
+	gameState.buildings = snapshot.buildings;
+	for (var i = 0; i < gameState.buildings.length; ++i) {
+		gameState.buildings[i].rollback();
+	}
+
+	gameState.deadarrows = snapshot.deadarrows;
+	for (var i = 0; i < gameState.deadarrows.length; ++i) {
+		gameState.deadarrows[i].rollback();
+	}
+	
+	gameState.arrows = snapshot.arrows;
+	for (var i = 0; i < gameState.arrows.length; ++i) {
+		gameState.arrows[i].rollback();
+	}
+	
+	
+
+	gameState.timestep = snapshot.timestep;
+
+	gameState.thrones = snapshot.thrones;
+
+	for (var i = 0; i < gameState.thrones.length; ++i) {
+		gameState.thrones[i].rollback();
+	}
+
+	for (var i = 0; i < gameState.ranchTier.length; ++i) {
+		gameState.ranchTier[i] = snapshot.ranchTier[i];
+		gameState.towerTier[i] = snapshot.towerTier[i];
+		gameState.coins[i] = snapshot.coins[i];
+	}
+
+}
+
+function handleReceiveCommandEvent(cmd) {
+	var other = (clientState.team+1)%2;
+	gameState.commandBackLog[other] = gameState.commandBackLog[other].concat(cmd);
+}
+
+
+
+var cmd = [
+	[
+		[COMMAND.BUILD_PIG_RANCH, [0, 2, 0]],
+		[COMMAND.BUILD_PIG_RANCH, [2, 2, 0]],
+		[COMMAND.BUILD_FARM, [0, 4, 0]],
+		[COMMAND.BUILD_FARM, [0, 5, 0]],
+		[COMMAND.BUILD_FARM, [0, 6, 0]],
+		[COMMAND.BUILD_FARM, [1, 4, 0]],
+		[COMMAND.BUILD_FARM, [1, 5, 0]],
+		[COMMAND.BUILD_FARM, [1, 6, 0]],
+		[COMMAND.BUILD_FARM, [2, 4, 0]],
+		[COMMAND.BUILD_FARM, [2, 5, 0]],
+		[COMMAND.BUILD_TOWER, [6, 1, 0]],
+	],
+
+	[
+		[COMMAND.BUILD_PIG_RANCH, [0, 6, 1]],
+		[COMMAND.BUILD_PIG_RANCH, [2, 6, 1]],
+		[COMMAND.BUILD_FARM, [0, 8, 1]],
+		[COMMAND.BUILD_FARM, [0, 9, 1]],
+		[COMMAND.BUILD_FARM, [0, 10, 1]],
+		[COMMAND.BUILD_FARM, [1, 8, 1]],
+		[COMMAND.BUILD_FARM, [1, 9, 1]],
+		[COMMAND.BUILD_FARM, [1, 10, 1]],
+		[COMMAND.BUILD_FARM, [2, 8, 1]],
+		[COMMAND.BUILD_FARM, [2, 9, 1]],
+		[COMMAND.BUILD_TOWER, [6, 10, 1]],
+		[COMMAND.BUILD_TOWER, [4, 10, 1]],
+		[COMMAND.BUILD_TOWER, [9, 10, 1]],
+	] 
+]
+var lastupdate = [0, 0]
+var delay = [100, 150]
+var exec = [0, 0]
+function testModule() {
+	for(var t = 0; t < 2; ++t) {
+		if (clientState.team == t) {
+			if (exec[t] >= cmd[t].length) break;
+			if (gameState.timestep - lastupdate[t] <= delay[t]) continue;
+			lastupdate[t] = gameState.timestep;
+			issueCommand(cmd[t][exec[t]][0], cmd[t][exec[t]][1]);
+			exec[t]++;
+		}
 	}
 }

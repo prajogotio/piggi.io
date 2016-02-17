@@ -129,6 +129,16 @@ function Farm(row, col, team) {
 }
 
 Farm.prototype = Object.create(Building.prototype);
+
+Farm.prototype.createSnapshot = function() {
+	PigRanch.prototype.createSnapshot.call(this);
+}
+
+
+Farm.prototype.rollback = function() {
+	PigRanch.prototype.rollback.call(this);
+}
+
 Farm.prototype.update = function(flock, map) {
 	Building.prototype.update.call(this, flock, map);
 	if (this.updateCount-this.lastProduce <= this.PRODUCE_DELAY) {
@@ -255,8 +265,17 @@ PigRanch.prototype.update = function(flock, map) {
 			return;
 		}
 	}
+}
 
+PigRanch.prototype.createSnapshot = function() {
+	Building.prototype.createSnapshot.call(this);
+	this.snapshot.lastProduce = this.lastProduce;
 
+}
+
+PigRanch.prototype.rollback = function () {
+	Building.prototype.rollback.call(this);
+	this.lastProduce = this.snapshot.lastProduce;
 }
 
 function PigHQ(row, col, team) {
@@ -336,6 +355,15 @@ Arrow.prototype.update = function() {
 	}
 }
 
+Arrow.prototype.createSnapshot = function() {
+	FlockPrite.prototype.createSnapshot.call(this);
+	this.snapshot.updateCount = this.updateCount;
+}
+
+Arrow.prototype.rollback = function() {
+	FlockPrite.prototype.rollback.call(this);
+	this.updateCount = this.snapshot.updateCount;
+}
 
 
 function Javelin(owner, target, damage) {
