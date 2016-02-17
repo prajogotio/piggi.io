@@ -20,6 +20,10 @@ body{
 	z-index:0;
 }
 
+#lobby-frame {
+	overflow-y:scroll;
+}
+
 
 .app-frame {
 	position:absolute;
@@ -256,4 +260,21 @@ body{
 	padding-top:4px;
 	overflow:hidden;
 	white-space:nowrap;
+}
+
+.room-frame-info, .room-frame-player-list, .room-frame-buttons {
+	width:80%;
+	left:10%;
+	position:relative;
+}
+
+.even {
+	width:50%;
+}
+
+.section-title {
+	width:100%;
+	background-color:rgba(133,255,133,0.1);
+	color:white;
+	text-align:center;
 }

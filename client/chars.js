@@ -163,7 +163,7 @@ function Garden(row, col, team) {
 	this.interactionType = this.EAT_TYPE;
 	this.SHOW_HEALTHBAR = false;
 	this.healthPoints = 550;
-	this.PERSISTENCE = 300/CONSTANT.SCALER;
+	this.PERSISTENCE = 300/CONSTANTS.SCALER;
 	this.MAX_INTERACTION = 2;
 	this.radius = 0;
 

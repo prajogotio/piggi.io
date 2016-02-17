@@ -215,8 +215,8 @@ function startGame() {
 
 	clientState.menuBar = new MenuBar();
 
-	//clientState.camera[0] = gameState.thrones[clientState.team].pos.x-clientState.canvas.width/2;
-	//clientState.camera[1] = gameState.thrones[clientState.team].pos.y-clientState.canvas.height/2;
+	clientState.camera[0] = gameState.thrones[clientState.team].pos.x-clientState.canvas.width/2;
+	clientState.camera[1] = gameState.thrones[clientState.team].pos.y-clientState.canvas.height/2;
 
 	clientState.gameEventHandlerResetFunction = registerGameEventHandler();
 	
@@ -265,7 +265,7 @@ function createNewGame(mapWidth, mapHeight, mapURI) {
 		thrones : [],
 		ranchTier : [1, 1],
 		towerTier : [1, 1],
-		coins : [1000, 1000],
+		coins : [10, 10],
 
 		lastSynchronized : -1,
 		lastSent : 0,
@@ -1481,10 +1481,17 @@ function testModule() {
 	if(false){
 		if(clientState.team == 0){
 			if (gameState.timestep % CONSTANTS.SEND_DELAY == 2) {
+				if (Math.random() < 0.3) {
+					var k = 0;
+					for (var i = 0; i < 100000000; ++i) {
+						k *= 100139103;
+					}
+				}
 				issueCommand(COMMAND.BUILD_FENCE, [x, y, 0]);
 				x++,y++;
 			}
 		}
+		return;
 	}
 
 	for(var t = 0; t < 2; ++t) {

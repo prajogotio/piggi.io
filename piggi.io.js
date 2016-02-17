@@ -229,9 +229,9 @@ io.on('connection', function(socket) {
 	});
 	// game synch
 	socket.on('commands', function(msg) {
-		setTimeout(function() {
+	setTimeout(function() {
 			sendToOtherPlayerInRoom('commands', msg);
-		}, Math.random()*500+400);
+	}, Math.random()*500+400);
 	});
 });
 
