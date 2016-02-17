@@ -95,6 +95,7 @@ var CONSTANTS = {
 	MAX_COINS : 9999,
 	FPS : 1000/30,
 	SCALER : 1.5,
+	SEND_DELAY : 500,
 }
 
 var gameState = {
@@ -184,6 +185,8 @@ function assetProgressHandler() {
 }
 
 function allAssetsLoadedHandler() {
+	canvas.width = window.innerWidth;
+	canvas.height = window.innerHeight;
 	clientState.mouseImg = asset.images["asset/mouse.png"];
 	clientState.mouseShadowImg = asset.images["asset/mouse_shadow.png"];
 	clientState.mouse[0] = clientState.canvas.width/2;
@@ -203,6 +206,8 @@ function startGame() {
 		gameState.gameEventHandlerResetFunction();
 	}
 
+	gameState = {};
+
 	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
 	// example game
 	gameState = createNewGame(20, 32, "asset/grass01.jpg");
@@ -216,6 +221,7 @@ function startGame() {
 	clientState.gameEventHandlerResetFunction = registerGameEventHandler();
 	
 	createSnapshot();
+	gameState.snapshot.timestep = -1;
 
 	gameState.scheduler = setInterval(function() {
 		// game routine
@@ -261,7 +267,7 @@ function createNewGame(mapWidth, mapHeight, mapURI) {
 		towerTier : [1, 1],
 		coins : [1000, 1000],
 
-		lastSynchronized : 0,
+		lastSynchronized : -1,
 		lastSent : 0,
 		localCommandLog : [],
 		commandBackLog : [[], []],
@@ -387,7 +393,7 @@ function updateGame() {
 		gameState.coins[i] = Math.min(gameState.coins[i], CONSTANTS.MAX_COINS);
 	}
 
-	if (gameState.timestep == gameState.lastSynchronized) {
+	if (gameState.timestep == gameState.lastSynchronized && !clientState.isSinglePlayer) {
 		createSnapshot();
 	}
 
@@ -564,6 +570,7 @@ function registerAppEventHandler() {
 	});
 
 	document.getElementById('exit-button').addEventListener('click', function() {
+		clientState.isHost = false;
 		socket.emit('exit-room');
 		appMoveToState('LOBBY_FRAME');
 	});
@@ -687,6 +694,7 @@ function registerAppEventHandler() {
 			if (clientState.currentRoom.id == roomId) {
 				clientState.isHost = true;
 				clientState.currentRoom.guestId = -1;
+				clientState.currentRoom.hostId = clientState.id;
 				refreshRoom();
 			}
 		}
@@ -700,6 +708,7 @@ function registerAppEventHandler() {
 		}
 		clientState.isGameOngoing = true;
 		clientState.isSinglePlayer = false;
+		appMoveToState('GAME_FRAME')
 		startGame();
 	});
 
@@ -1026,8 +1035,15 @@ function handleCommands () {
 		var i = 0, j = 0;	// i and j will point to the next unexecuted command
 		var si = 0, sj = 0; // everything less than si and sj are synchronized
 		var backlog = gameState.commandBackLog;
-		
+
 		gameState.timestep++;
+		// console.log(currentTimestep, gameState.timestep);
+		// for (var i = 0; i < gameState.commandBackLog[0].length;++i){
+		// 	console.log('0 [',gameState.commandBackLog[0][i][0],']');
+		// }
+		// for (var i = 0; i < gameState.commandBackLog[1].length;++i){
+		// 	console.log('1 [',gameState.commandBackLog[1][i][0],']');
+		// }
 		var i = 0, j = 0;
 		for (var time = gameState.timestep; time < currentTimestep; ++time) {
 			while (i < backlog[0].length && backlog[0][i][0] == time) {
@@ -1039,15 +1055,27 @@ function handleCommands () {
 				++j;
 			}
 			updateGame();
-			if (gameState.lastSynchronized == time) {
-				si = i;
-				sj = j;
+		}
+		var otherIdx = (other == 0 ? i : j);
+		var local = clientState.team;
+		var localIdx = 0;
+		var maxT = (0 < otherIdx ? backlog[other][otherIdx-1][0] : -1);
+		while (localIdx < backlog[local].length) {
+			if (backlog[local][localIdx][0] <= maxT) {
+				localIdx++;
+			} else {
+				break;
 			}
 		}
-
-		gameState.commandBackLog[0] = gameState.commandBackLog[0].splice(si);
-		gameState.commandBackLog[1] = gameState.commandBackLog[1].splice(sj);
-
+		gameState.commandBackLog[other] = gameState.commandBackLog[other].splice(otherIdx);
+		gameState.commandBackLog[local] = gameState.commandBackLog[local].splice(localIdx);
+		// console.log('rem')
+		// for (var i = 0; i < gameState.commandBackLog[0].length;++i){
+		// 	console.log('0 [',gameState.commandBackLog[0][i][0],']');
+		// }
+		// for (var i = 0; i < gameState.commandBackLog[1].length;++i){
+		// 	console.log('1 [',gameState.commandBackLog[1][i][0],']');
+		// }
 	}
 
 
@@ -1061,9 +1089,6 @@ function handleCommands () {
 			
 			executeCommand(backlog[0][i]);
 			si = i+1;
-			if (backlog[0][i][1] == COMMAND.SYNCHRONIZED) {
-				synchronizationPoint = true;
-			}
 		}
 		++i;
 	}
@@ -1072,16 +1097,27 @@ function handleCommands () {
 
 			executeCommand(backlog[1][j]);
 			sj = j+1;
-			if (backlog[1][j][1] == COMMAND.SYNCHRONIZED) {
-				synchronizationPoint = true;
-			}
 		}
 		++j;
 	}
-	if (synchronizationPoint) {
-		gameState.commandBackLog[0] = gameState.commandBackLog[0].splice(si);
-		gameState.commandBackLog[1] = gameState.commandBackLog[1].splice(sj);
+
+	if (backlog[other].length > 0) {
+		var otherIdx = (other == 0 ? si : sj);
+		var local = clientState.team;
+		var localIdx = 0;
+		var maxT = (0 < otherIdx ? backlog[other][otherIdx-1][0] : -1);
+		while (localIdx < backlog[local].length) {
+			if (backlog[local][localIdx][0] <= maxT) {
+				localIdx++;
+			} else {
+				break;
+			}
+		}
+		gameState.commandBackLog[other] = gameState.commandBackLog[other].splice(otherIdx);
+		gameState.commandBackLog[local] = gameState.commandBackLog[local].splice(localIdx);
 	}
+
+		
 }
 
 
@@ -1097,10 +1133,16 @@ function isClientInTeam(team) {
 
 // APP GUI codes
 function appMoveToState(state) {
+	// clean up
 	appFrames[clientState.appState].style.setProperty('display', 'none');
-	appFrames[state].style.setProperty('display', 'block');
-	clientState.appState = state;
+	if (clientState.appState == 'GAME_FRAME') {
+		appFrames[clientState.appState].style.setProperty('z-index', '0');
+	}
 
+	appFrames[state].style.setProperty('display', 'block');
+
+	clientState.appState = state;
+	// prepare
 	if (state == 'LOGIN_FRAME') {
 		document.getElementById('login-input').focus();
 	}
@@ -1111,6 +1153,9 @@ function appMoveToState(state) {
 	}
 	else if (state == 'ROOM_FRAME') {
 		refreshRoom();
+	}
+	else if (state == 'GAME_FRAME') {
+		appFrames[clientState.appState].style.setProperty('z-index', '5');
 	}
 
 }
@@ -1232,9 +1277,8 @@ function refreshRoom() {
 
 
 function sendCommandLog() {
-	var DT = 500; // synchronize every timesteps
 	if (clientState.isSinglePlayer) return;
-	if (gameState.timestep - gameState.lastSent <= DT) return;
+	if (gameState.timestep - gameState.lastSent <= CONSTANTS.SEND_DELAY) return;
 	gameState.lastSent = gameState.timestep;
 	gameState.localCommandLog.push([gameState.timestep-1, COMMAND.SYNCHRONIZED, []]);
 	socket.emit('commands', gameState.localCommandLog);
@@ -1248,6 +1292,7 @@ function synchronize(cmd) {
 }
 
 function createSnapshot() {
+
 	var snapshot = {
 		map : {
 			data : new Int32Array(gameState.map.width*gameState.map.height).fill(1),
@@ -1295,7 +1340,8 @@ function createSnapshot() {
 	}
 
 	snapshot.timestep = gameState.timestep;
-
+	//console.log(gameState.timestep);
+	//console.log(gameState.flocks.length, gameState.snapshot ? gameState.snapshot.flocks.length: -1);
 	for (var i = 0; i < gameState.flocks.length; ++i) {
 		snapshot.flocks.push(gameState.flocks[i]);
 		gameState.flocks[i].createSnapshot();
@@ -1430,9 +1476,24 @@ var cmd = [
 var lastupdate = [0, 0]
 var delay = [100, 150]
 var exec = [0, 0]
+var x = 0, y = 2;
 function testModule() {
+	if(false){
+		if(clientState.team == 0){
+			if (gameState.timestep % CONSTANTS.SEND_DELAY == 2) {
+				issueCommand(COMMAND.BUILD_FENCE, [x, y, 0]);
+				x++,y++;
+			}
+		}
+	}
+
 	for(var t = 0; t < 2; ++t) {
 		if (clientState.team == t) {
+			// if (t == 1 && gameState.timestep == 123) {
+			// 	for (var i = 0; i < 50000;++i) {
+			// 		console.log('make it happen')
+			// 	}
+			// }
 			if (exec[t] >= cmd[t].length) {
 				delay[t] = 300;
 				if (gameState.timestep - lastupdate[t] <= delay[t]) continue;

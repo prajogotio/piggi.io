@@ -62,7 +62,6 @@ function Flocker(mass, pos, radius) {
 
 	this.INTEGRATE_ONLY_MAX_COUNTER = 10 / CONSTANTS.SCALER;
 	this.integrateOnlyCounter = 10 / CONSTANTS.SCALER;
-
 }
 
 Flocker.prototype.seek = function() {
@@ -580,6 +579,7 @@ FlockPrite.prototype.setPath = function(path) {
 }
 
 FlockPrite.prototype.createSnapshot = function() {
+	console.log('babi: ', gameState.timestep);
 	this.snapshot = {
 		pos : this.pos.copy(),
 		force : this.force.copy(),
