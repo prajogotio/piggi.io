@@ -29,48 +29,69 @@
 				<div class="clear-fix"></div>
 			</div>
 		</div>
-		<div class="footer">piggi.io, written by <a href="https://prajogotio.github.io" style="text-decoration:none;color:black">prajogo tio</a>. 2016</div>
+		<div class="footer">piggi.io, written by <a href="https://prajogotio.github.io" style="text-decoration:none;color:white">prajogo tio</a>. 2016</div>
 	</div>
 
 	<div id="lobby-frame" class="app-frame">
-		
-		<div class="lobby-options">
-			<div id="single-player" class="button">Single Player</div>
-			<div id="create-room" class="button">Create Room</div>
-			<div id="match-make" class="button">Match Make</div>			
+		<div class="heading">
+			Piggi Lobby
 		</div>
-		<div>Rooms</div>
-		<div id="room-list"></div>
-		<div>Online Users</div>
-		<div id="online-user-list"></div>
+
+		<div class="sub-heading">
+			Options
+		</div>
+		<div class="lobby-options">
+			<div id="single-player" class="button float-left">Play Alone</div>
+			<div id="create-room" class="button float-left">Play With Friend</div>
+			<div class="clear-fix"></div>
+		</div>
+		
+		<div class="sub-heading">
+			Lobby Status
+		</div>
+		<div class="lobby-main">
+			<div class="room-list float-left">
+				<div class="list-heading">Rooms</div>
+				<div id="room-list"></div>
+			</div>
+			<div class="online-user-list float-left">
+				<div class="list-heading">Online Users</div>
+				<div id="online-user-list"></div>
+			</div>
+			<div class="clear-fix"></div>
+		</div>
 
 		<div id="create-room-form">
-			<div>Create Room</div>
-			<div>
-				<div>Room Title: </div><input type="text" id="room-title">
+			<div class='form-heading'>Create Match Room</div>
+			<div class='form-input'>
+				<div>Room Title: </div>
+				<input type="text" id="room-title">
 			</div>
-			<div>
-				<div id="create-room-submit" class="button">Create</div>
-				<div id="create-room-cancel" class="button">Cancel</div>
+			<div class='form-input'>
+				<div id="create-room-submit" class="button float-left">Create</div>
+				<div id="create-room-cancel" class="button float-left">Cancel</div>
+				<div class="clear-fix"></div>
 			</div>
 		</div>
 	</div>
 
 	<div id="room-frame" class="app-frame">
-		<div>
+		<div class="room-frame-info">
 			<div>Room Info</div>
-			<div>Room ID:</div>
-			<div>Room Title</div>
+			<div id="room-frame-title">Room Title</div>
+		</div>
+		<div class="room-frame-player-list">
+			<div>Player List</div>
+			<div id="room-frame-host">
+			</div>
+			<div id="room-frame-guest">
+			</div>
 		</div>
 		<div>
-			<div>Player List</div>
-			<div id="host">
-			</div>
-			<div id="guest">
-			</div>
+			<div id="start-game-button" class="button float-right">Start Game</div>
+			<div id="exit-button" class="button float-right">Exit Room</div>
+			<div class="clear-fix"></div>
 		</div>
-		<div id="start-game-button" class="button">Start Game</div>
-		<div class="button">Exit Room</div>
 	</div>
 
 	<div id="game-frame" class="app-frame">

@@ -7,8 +7,17 @@ body{
 	padding:0;
 }
 
-#login-frame, #lobby-frame, #room-frame, #game-frame {
+#login-frame, #lobby-frame, #room-frame {
 	display:none;
+	background-color:rgba(9,9,9,0.2);
+	z-index:1;
+	color:white;
+	width:100%;
+	height:100%;
+}
+
+#game-frame {
+	z-index:0;
 }
 
 
@@ -53,8 +62,9 @@ body{
 .login-input {
 	margin-left:10px;
 	font-size:22px;
-	border:1px solid black;
+	border:1px solid rgba(255,255,255,0.5);
 	padding:4px;
+	background-color:rgba(255,255,255,0.3);
 }
 
 .login-label {
@@ -82,8 +92,12 @@ body{
 
 .button {
 	cursor:pointer;
-	border:1px solid black;
+	border:1px solid rgba(255,255,255,0.5);
 	padding:10px;
+	margin-right:8px;
+	border-radius:8px;
+	color:white;
+	background-color:rgba(255,100,100,1.0);
 }
 
 #create-room-form {
@@ -92,12 +106,16 @@ body{
 	transform:translate(-50%,-50%);
 	left:50%;
 	top:50%;
-	border:1px solid black;
-	background: white;
+	border:1px solid rgba(255,255,255,0.5);
+	background: rgba(255,255,255,0.8);
+	width:250px;
+	color:black;
 }
 
 .room-item {
 	cursor:pointer;
+	padding:8px;
+	background-color:rgba(0,0,0,0.3);
 }
 
 #waiting-screen {
@@ -119,10 +137,122 @@ body{
 }
 
 .room-item {
-	border:1px solid black;
+	border:1px solid rgba(255,255,255,0.5);
+	float:left;
+	width:48%;
+	margin-right:1%;
+	margin-left:1%;
+	height:80px;
+	margin-top:4px;
+}
+
+.room-item-title {
+	width:100%;
+	text-align: center;
 }
 
 .online-list-item div{
 	display:inline-block;
 	padding:4px;
+}
+
+.lobby-options, .lobby-main, .heading, .sub-heading {
+	position: relative;
+	width:80%;
+	left:10%;
+}
+
+.lobby-options {
+	background-color:rgba(255,255,255,0.1);
+}
+
+.heading {
+	text-align: center;
+	font-size:30px;
+	margin-top:44px;
+	margin-bottom:32px;	
+	padding:8px;
+}
+
+.sub-heading {
+	margin-top:16px;
+	margin-bottom:8px;
+	border:1px solid rgba(255,255,255,0.5);
+	padding:10px;
+	background-color:rgba(0,0,0,0.4);
+}
+
+
+.list-heading {
+	border:1px solid rgba(255,255,255,0.5);
+	padding:4px;
+	background-color:rgba(0,0,0,0.4);
+}
+
+.online-user-list {
+	width:20%;
+	margin-left:1%;
+	background-color:rgba(0,0,0,0.5);
+}
+
+.room-list {
+	width:79%;
+	background-color:rgba(255,255,255,0.1);
+}
+
+.form-heading {
+	font-size:22px;
+	padding:8px;
+	text-align:center;
+}
+
+.form-input {
+	width:90%;
+	left:5%;
+	position:relative;
+	margin-top:4px;
+	margin-bottom:4px;
+	padding:4px;
+}
+
+.form-input input {
+	width:100%;
+	border:1px solid rgba(255,255,255,0.5);
+	font-size:18px;
+}
+
+.id {
+	overflow:hidden;
+	white-space:nowrap;
+	width:15%;
+}
+
+.name {
+	color:rgba(0,255,100,1.0);
+	overflow:hidden;
+	white-space:nowrap;
+	width:80%;
+}
+
+.full {
+	color:white;
+}
+
+.avail {
+	color:rgb(100,255,100);
+}
+
+.room-item-title {
+	text-align: center;
+	background-color:rgba(100,255,100,0.3);
+	font-size: 19px;
+	overflow:hidden;
+	white-space:nowrap;
+	width:100%;
+}
+
+.room-item-owner, .room-item-status {
+	padding-top:4px;
+	overflow:hidden;
+	white-space:nowrap;
 }

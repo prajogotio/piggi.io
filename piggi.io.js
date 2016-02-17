@@ -38,6 +38,7 @@ io.on('connection', function(socket) {
 			state : 'lobby',
 			socket : socket,
 		}
+		socket.emit('id', currentId);
 		currentPlayer = serverState.player[currentId];
 		broadcastToLobby('online', {id: currentId, username: msg});
 			
@@ -114,7 +115,10 @@ io.on('connection', function(socket) {
 				socket.emit('room-joined', roomId);
 
 				var roomOwner = serverState.player[r.hostId];
-				roomOwner.socket.emit('room-visitor', currentId);
+				roomOwner.socket.emit('room-visitor', {
+					id: currentId,
+					username: currentPlayer.username,
+				});
 
 				broadcastToLobby('room-full', roomId);
 			}
@@ -156,7 +160,9 @@ io.on('connection', function(socket) {
 			if (guestId != -1) {
 				serverState.player[guestId].socket.emit(event, msg);
 			}
-			serverState.player[hostId].socket.emit(event, msg);
+			if (serverState.player[hostId]){
+				serverState.player[hostId].socket.emit(event, msg);
+			}
 		}
 	}
 

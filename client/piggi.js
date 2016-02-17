@@ -118,6 +118,8 @@ var clientState = {
 	currentRoom : null,
 	isHost : false,
 	isGameOngoing : false,
+	isSinglePlayer : true,
+	id : 0,
 }
 
 var appFrames = {};
@@ -189,11 +191,18 @@ function allAssetsLoadedHandler() {
 
 	registerAppEventHandler();
 
-	//startGame();
+	startBackgroundAnimation();
 	appMoveToState('LOGIN_FRAME');
 }
 
 function startGame() {
+	if (gameState.scheduler) {
+		clearInterval(gameState.scheduler);
+	}
+	if (gameState.gameEventHandlerResetFunction) {
+		gameState.gameEventHandlerResetFunction();
+	}
+
 	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
 	// example game
 	gameState = createNewGame(20, 32, "asset/grass01.jpg");
@@ -207,6 +216,7 @@ function startGame() {
 	clientState.gameEventHandlerResetFunction = registerGameEventHandler();
 	
 	createSnapshot();
+
 	gameState.scheduler = setInterval(function() {
 		// game routine
 		testModule();
@@ -551,8 +561,16 @@ function registerAppEventHandler() {
 		if (clientState.isHost) {
 			socket.emit('request-start-game');
 		}
-	})
+	});
 
+	document.getElementById('exit-button').addEventListener('click', function() {
+		socket.emit('exit-room');
+		appMoveToState('LOBBY_FRAME');
+	});
+
+	socket.on('id', function(id) {
+		clientState.id = id;
+	});
 
 	socket.on('online', function(msg) {
 		clientState.online.push(msg.id);
@@ -613,10 +631,10 @@ function registerAppEventHandler() {
 	});
 
 	socket.on('room-exited', function(playerId){
-		if (clientState.room) {
-			if (clientState.room.guestId == playerId) {
-				clientState.room.guestId = -1;
-				refreshRoomPlayerList();
+		if (clientState.currentRoom) {
+			if (clientState.currentRoom.guestId == playerId) {
+				clientState.currentRoom.guestId = -1;
+				refreshRoom();
 			}
 		}
 	});
@@ -630,18 +648,25 @@ function registerAppEventHandler() {
 
 	socket.on('room-joined', function(roomId) {
 		if (roomId == clientState.enteringRoomId) {
-			clientState.room = clientState.room[roomId];
-			clientState.playingWithId = clientState.room.hostId;
+			clientState.currentRoom = clientState.room[roomId];
+			clientState.currentRoom.guestId = clientState.id;
+			clientState.playingWithId = clientState.currentRoom.hostId;
 			appMoveToState('ROOM_FRAME');
 			hideWaitingScreen();
 		}
 	});
 
-	socket.on('room-visitor', function(guestId) {
-		if (clientState.room) {
-			clientState.room.guestId = guestId;
-			clientState.playingWithId = guestId;	
-			refreshRoomPlayerList();	
+	socket.on('room-visitor', function(msg) {
+		guestId = msg.id;
+		username = msg.username;
+		if (clientState.currentRoom) {
+			clientState.currentRoom.guestId = guestId;
+			clientState.player[guestId] = {
+				username: username,
+				id: guestId,
+			}
+			clientState.playingWithId = guestId;
+			refreshRoom();	
 		}
 	});
 
@@ -658,10 +683,11 @@ function registerAppEventHandler() {
 	});
 
 	socket.on('room-owner', function(roomId) {
-		if (clientState.room) {
-			if (clientState.room.id == roomId) {
+		if (clientState.currentRoom) {
+			if (clientState.currentRoom.id == roomId) {
 				clientState.isHost = true;
-				clientState.guestId = -1;
+				clientState.currentRoom.guestId = -1;
+				refreshRoom();
 			}
 		}
 	});
@@ -673,6 +699,7 @@ function registerAppEventHandler() {
 			clientState.team = msg.guest;
 		}
 		clientState.isGameOngoing = true;
+		clientState.isSinglePlayer = false;
 		startGame();
 	});
 
@@ -1078,11 +1105,12 @@ function appMoveToState(state) {
 		document.getElementById('login-input').focus();
 	}
 	else if (state == 'LOBBY_FRAME') {
+		document.getElementById('create-room-form').style.display = 'none';
 		socket.emit('get-online-player');
 		socket.emit('get-room-list');
 	}
 	else if (state == 'ROOM_FRAME') {
-
+		refreshRoom();
 	}
 
 }
@@ -1093,7 +1121,7 @@ function createRoom(roomTitle) {
 
 function displayRoomList(toAppend) {
 	if (toAppend) {
-		document.getElementById('room-list').appendChild(generateRoomItem(toAppend));
+		document.getElementById('room-list').insertBefore(generateRoomItem(toAppend), document.getElementById('room-list').lastChild);
 	} else {
 		document.getElementById('room-list').innerHTML = '';
 		for (var i = 0; i < clientState.roomList.length; ++i) {
@@ -1101,16 +1129,20 @@ function displayRoomList(toAppend) {
 			var room = clientState.room[rid];
 			document.getElementById('room-list').appendChild(generateRoomItem(room));
 		}
+		var clearfix = document.createElement('div');
+		clearfix.setAttribute('class', 'clear-fix');
+		document.getElementById('room-list').appendChild(clearfix);
+
 	}
 }
 
 function generateRoomItem(room) {
 	var div = document.createElement('div');
-	var html = "<div>"+room.id+"</div>";
-		html += "<div>"+room.title+"</div>";
-		html += "<div>"+room.hostId+"</div>";
-		html += "<div>"+room.hostname+"</div>";
-		html += "<div>"+(room.full?'Full':'')+"</div>";
+	var html = "<div class='room-item-title'>["+room.id+"] ";
+		html += room.title+"</div>";
+		html += "<div class='room-item-owner'>Owner: ["+room.hostId+"] ";
+		html += room.hostname+"</div>";
+		html += "<div class='room-item-status'>Status: "+(room.full?'<span class="full">Full</span>':'<span class="avail">Available</span>')+"</div>";
 	div.innerHTML = html;
 	div.onclick = function() {
 		if (room.full) {
@@ -1127,11 +1159,11 @@ function generateRoomItem(room) {
 
 function refreshRoomItem(room) {
 	var div = room.div;
-	var html = "<div>"+room.id+"</div>";
-		html += "<div>"+room.title+"</div>";
-		html += "<div>"+room.hostId+"</div>";
-		html += "<div>"+room.hostname+"</div>";
-		html += "<div>"+(room.full?'Full':'')+"</div>";
+	var html = "<div>Title: ["+room.id+"] ";
+		html += room.title+"</div>";
+		html += "<div>Created by: ["+room.hostId+"] ";
+		html += room.hostname+"</div>";
+		html += "<div>Status: "+(room.full?'Full':'Available')+"</div>";
 	div.innerHTML = html;
 }
 
@@ -1150,8 +1182,8 @@ function displayOnlineList(toAppend) {
 
 function generateOnlineListItem(player) {
 	var div = document.createElement('div');
-	var html = "<div>"+player.id+"</div>";
-		html += "<div>"+player.username+"</div>";
+	var html = "<div class='id'>"+player.id+"</div>";
+		html += "<div class='name'>"+player.username+"</div>";
 	div.innerHTML = html;
 	div.setAttribute('class', 'online-list-item');
 	player.div = div;
@@ -1189,8 +1221,11 @@ function hideWaitingScreen() {
 	document.getElementById('waiting-screen').style.display = 'none';
 }
 
-function refreshRoomPlayerList() {
-
+function refreshRoom() {
+	document.getElementById('room-frame-title').innerHTML = "Room Title : [" + clientState.currentRoom.id + "] " + clientState.currentRoom.title;
+	document.getElementById('start-game-button').style.display = clientState.isHost ? 'block' : 'none';
+	document.getElementById('room-frame-guest').innerHTML = (clientState.currentRoom.guestId == -1 ? 'Waiting.' : '['+clientState.currentRoom.guestId+'] '+clientState.player[clientState.currentRoom.guestId].username);
+	document.getElementById('room-frame-host').innerHTML = '['+clientState.currentRoom.hostId+'] '+clientState.player[clientState.currentRoom.hostId].username;
 }
 
 
@@ -1198,6 +1233,7 @@ function refreshRoomPlayerList() {
 
 function sendCommandLog() {
 	var DT = 500; // synchronize every timesteps
+	if (clientState.isSinglePlayer) return;
 	if (gameState.timestep - gameState.lastSent <= DT) return;
 	gameState.lastSent = gameState.timestep;
 	gameState.localCommandLog.push([gameState.timestep-1, COMMAND.SYNCHRONIZED, []]);
@@ -1402,8 +1438,8 @@ function testModule() {
 				if (gameState.timestep - lastupdate[t] <= delay[t]) continue;
 				lastupdate[t] = gameState.timestep;
 				if (true){
-					var r = Math.floor(Math.random()*gameState.map.height);
-					var c = Math.floor(Math.random()*gameState.map.width);
+					var r = Math.floor(Math.random()*gameState.map.height*gameState.map.size);
+					var c = Math.floor(Math.random()*gameState.map.width*gameState.map.size);
 					var t = Math.random();
 					var bs = 1;
 					if (t < 0.2) {
@@ -1429,4 +1465,37 @@ function testModule() {
 			exec[t]++;
 		}
 	}
+}
+
+
+function startBackgroundAnimation() {
+	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
+	// example game
+	gameState = createNewGame(20, 32, "asset/grass01.jpg");
+	gameState.thrones.push(new Throne(0, 0, 0), new Throne(30, 18, 1));
+
+	gameState.flocks.push(new Pig(new Vec2(canvas.width/2, canvas.height/2), 0));
+
+	//clientState.camera[0] = gameState.thrones[clientState.team].pos.x-clientState.canvas.width/2;
+	//clientState.camera[1] = gameState.thrones[clientState.team].pos.y-clientState.canvas.height/2;
+
+	
+	var lastChosen = -10000;
+	var changeDelay = 1000;
+	gameState.thrones[1].isAlive = false;
+	gameState.scheduler = setInterval(function() {
+		if (gameState.timestep - lastChosen > changeDelay){
+			gameState.flocks[0].setLockOnTarget({
+				isAlive : true,
+				MOVING_TARGET:true,
+				pos : new Vec2(Math.random()*gameState.map.width*gameState.map.size, Math.random()*gameState.map.height*gameState.map.size)
+			}, gameState.map);
+			lastChosen = gameState.timestep;
+		}
+		updateGame();
+		clientState.camera[0] = gameState.flocks[0].pos.x-clientState.canvas.width/2;
+		clientState.camera[1] = gameState.flocks[0].pos.y-clientState.canvas.height/2;
+		updateCamera();
+		renderGame();
+	}, CONSTANTS.FPS);
 }
