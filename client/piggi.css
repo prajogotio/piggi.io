@@ -133,13 +133,6 @@ body{
 	z-index:100;
 	display:none;
 }
-#waiting-text {
-	position:absolute;
-	font-size:40px;
-	transform:translate(-50%,-50%);
-	left:50%;
-	top:50%;
-}
 
 .room-item {
 	border:1px solid rgba(255,255,255,0.5);
@@ -324,4 +317,22 @@ body{
 	transform:translate(-50%,0%);
 	z-index:100;
 	display:none;
+}
+
+.waiting-text-box {
+	position:absolute;
+	top:50%;
+	left:50%;
+	transform:translate(-50%,0%);
+	background-color:rgba(255,255,255,0.6);
+	border-radius:8px;
+	padding:30px;
+}
+
+#waiting-text {
+	position:relative;
+	font-family: helvetica;
+	font-size:22px;
+	color:black;
+	font-weight: 100;
 }
