@@ -53,7 +53,10 @@ var asset = {
 		"asset/pig_coin.png",
 		"asset/numbers.png",
 		"asset/locked_icon.png",
+		"asset/snow.png",
 		"asset/pigidow.jpg", 
+		"asset/snowy-yosemite.jpg",
+		"asset/furpig-valley.jpg",
 	],
 	images : {},
 	assetSoundList : [
@@ -215,8 +218,7 @@ function startGame() {
 	gameState = {};
 
 	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
-	// example game
-	createNewGame(0);
+	createNewGame(clientState.currentRoom.chosenMap);
 
 	clientState.menuBar = new MenuBar();
 
@@ -260,6 +262,8 @@ function createNewGame(mid) {
 			imgBuffer : asset.images[mapURI],
 			size : 64,
 			lastUpdated : 0,
+
+			specialEffect : map.specialEffect ? map.specialEffect() : null,
 		},
 		
 
@@ -287,6 +291,7 @@ function createNewGame(mid) {
 		declaredVictory : [false, false],
 		isGameOver : false,
 		madeDeclaration : false,
+
 	}
 
 	gameState = state;
@@ -366,6 +371,10 @@ function renderGame() {
 	// 		}
 	// 	}
 	// }
+
+	if (gameState.map.specialEffect) {
+		gameState.map.specialEffect(g);
+	}
 
 	g.restore();
 
@@ -633,6 +642,33 @@ function registerAppEventHandler() {
 		appMoveToState('LOBBY_FRAME');
 	});
 
+	document.getElementById('prev-map').addEventListener('click', function() {
+		var mid = clientState.currentRoom.chosenMap - 1;
+		if (mid < 0) mid += maps.length;
+		clientState.currentRoom.chosenMap = mid;
+		socket.emit('map-change', mid);
+		refreshRoom();
+	});
+
+	document.getElementById('next-map').addEventListener('click', function() {
+		var mid = (clientState.currentRoom.chosenMap + 1) % maps.length;
+		clientState.currentRoom.chosenMap = mid;
+		socket.emit('map-change', mid);
+		refreshRoom();
+	});
+
+	document.getElementById('tutorial').addEventListener('click', function() {
+		showTutorial();
+	});	
+
+	document.getElementById('single-player').addEventListener('click', function() {
+		startSinglePlayerGame();
+	});
+
+	document.getElementById('tutorial-ok-button').addEventListener('click', function() {
+		hideTutorial();
+	})
+
 	socket.on('id', function(id) {
 		clientState.id = id;
 	});
@@ -678,6 +714,7 @@ function registerAppEventHandler() {
 		clientState.roomList.push(msg.id);
 		clientState.currentRoom = msg;
 		clientState.isHost = true;
+		clientState.currentRoom.chosenMap = 0;
 		appMoveToState('ROOM_FRAME');
 	});
 
@@ -711,9 +748,10 @@ function registerAppEventHandler() {
 		}
 	});
 
-	socket.on('room-joined', function(roomId) {
-		if (roomId == clientState.enteringRoomId) {
-			clientState.currentRoom = clientState.room[roomId];
+	socket.on('room-joined', function(room) {
+		if (room.id == clientState.enteringRoomId) {
+			clientState.room[room.id] = room;
+			clientState.currentRoom = room;
 			clientState.currentRoom.guestId = clientState.id;
 			clientState.playingWithId = clientState.currentRoom.hostId;
 			appMoveToState('ROOM_FRAME');
@@ -733,6 +771,11 @@ function registerAppEventHandler() {
 			clientState.playingWithId = guestId;
 			refreshRoom();	
 		}
+	});
+
+	socket.on('map-change', function(mid) {
+		clientState.currentRoom.chosenMap = mid;
+		refreshRoom();
 	});
 
 	socket.on('room-deleted', function(roomId) {
@@ -906,12 +949,6 @@ function registerGameEventHandler() {
 		}
 
 
-		else if (e.which == 66) {
-			// HELPER, REMOVE LATER
-			// generate pig
-			clearInterval(gameState.scheduler);
-			//gameState.flocks.push(new Pig(new Vec2(x,y), clientState.team));
-		}
 
 	}
 	
@@ -1357,13 +1394,23 @@ function hideWaitingScreen() {
 function refreshRoom() {
 	document.getElementById('room-frame-title').innerHTML = "Room Title : [" + clientState.currentRoom.id + "] " + clientState.currentRoom.title;
 	document.getElementById('start-game-button').style.display = clientState.isHost ? 'block' : 'none';
+	document.getElementById('map-options').style.display = clientState.isHost ? 'block' : 'none';
 	document.getElementById('room-frame-guest').innerHTML = (clientState.currentRoom.guestId == -1 ? 'Waiting.' : '['+clientState.currentRoom.guestId+'] '+clientState.player[clientState.currentRoom.guestId].username);
 	if (clientState.currentRoom.guestId == -1) {
 		document.getElementById('guest-title').style.setProperty('background-color', 'rgba(255,100,100,0.5)');
+		document.getElementById('start-game-button').style.setProperty('opacity', '0.5');
 	} else {
 		document.getElementById('guest-title').style.setProperty('background-color', 'rgba(133,255,133,0.5)');
+		document.getElementById('start-game-button').style.setProperty('opacity', '1.0');
 	}
 	document.getElementById('room-frame-host').innerHTML = '['+clientState.currentRoom.hostId+'] '+clientState.player[clientState.currentRoom.hostId].username;
+
+	var canvas = document.getElementById('map-info-canvas');
+	var g = canvas.getContext('2d');
+	var map = maps[clientState.currentRoom.chosenMap];
+	g.drawImage(asset.images[map.asset], 0, 0, asset.images[map.asset].width, asset.images[map.asset].width, 0, 0, canvas.width, canvas.height);
+	document.getElementById('map-title').innerHTML = "Location : " + map.title;
+	document.getElementById('map-dimension').innerHTML = "Size : " + map.width + " x " + map.height;
 }
 
 
@@ -1675,6 +1722,7 @@ function gameOver() {
 
 function gameCleanUp() {
 	clientState.state = 'NONE';
+	clientState.isSinglePlayer = false;
 	if(gameState.scheduler){
 		clearInterval(gameState.scheduler);
 	}
@@ -1749,5 +1797,162 @@ function generateMaps() {
 		width : 20,
 		height : 32,
 		thrones : [[0,0], [30,18]],
+		specialEffect : null,
 	});
+	maps.push({
+		title : 'Snowy Yosemite',
+		asset : 'asset/snowy-yosemite.jpg',
+		width : 25,
+		height : 40,
+		thrones : [[0, 12], [38, 13]],
+		specialEffect : snowGenerator,
+	});
+	maps.push({
+		title : 'Furpig Valley',
+		asset : "asset/furpig-valley.jpg",
+		width : 4,
+		height : 20,
+		thrones : [[0,1],[18,1]],
+		specialEffect : null,
+	})
+}
+
+function snowGenerator() {
+	var snow = [];
+	var MAX_DELTA = 300;
+	return function render(g) {
+		if (Math.random() < 0.4) {
+			var x = Math.random() * gameState.map.width*gameState.map.size;
+			var y = Math.random() * gameState.map.height*gameState.map.size;
+			snow.push({pos : new Vec2(x,y), delta:0});
+		}
+		var tmp = [];
+		for (var i = 0; i < snow.length; ++i) {
+			if (snow[i].delta >= MAX_DELTA) {
+				continue;
+			}
+			tmp.push(snow[i]);
+			if(snow[i].delta % 20 == 0) {
+				var dx = (Math.random() < 0.5 ? -1 : 1) * Math.random();
+				var dy = Math.random();
+				var v = new Vec2(dx,dy).normalize().times(0.8);
+				snow[i].v = v;
+			}
+			snow[i].pos = snow[i].pos.plus(snow[i].v);
+			g.drawImage(asset.images['asset/snow.png'], 0, 0, 128, 128, snow[i].pos.x, snow[i].pos.y, 32, 32);
+			snow[i].delta++;
+		}
+		snow = tmp;
+	}
+}
+
+function showTutorial() {
+	document.getElementById('tutorial-div').style.display = 'block';
+}
+
+function hideTutorial() {
+	document.getElementById('tutorial-div').style.display = 'none';
+}
+
+function startSinglePlayerGame() {
+	appMoveToState('GAME_FRAME');
+	if (gameState.scheduler) {
+		clearInterval(gameState.scheduler);
+	}
+	if (gameState.gameEventHandlerResetFunction) {
+		gameState.gameEventHandlerResetFunction();
+	}
+
+	gameState = {};
+
+	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
+	
+	createNewGame(0);
+
+	clientState.menuBar = new MenuBar();
+
+	clientState.team = 0;
+
+	clientState.camera[0] = gameState.thrones[clientState.team].pos.x-clientState.canvas.width/2;
+	clientState.camera[1] = gameState.thrones[clientState.team].pos.y-clientState.canvas.height/2;
+
+	clientState.gameEventHandlerResetFunction = registerGameEventHandler();
+	
+	createSnapshot();
+	gameState.snapshot.timestep = -1;
+	gameState.AI = {};
+	gameState.AI.farms = 0;
+	gameState.AI.fences = 0;
+	gameState.AI.ranches = 0;
+	gameState.AI.towers = 0;
+
+	gameState.scheduler = setInterval(function() {
+		// game routine
+		if (!gameState.isGameOver) {
+			updateAI();
+			handleCommands();
+			updateGame();
+		}
+		updateCamera();
+		renderGame();
+		renderMenuBar();
+		drawMouse();
+
+		if (!gameState.isGameOver) {
+			sendCommandLog();
+		}
+	}, CONSTANTS.FPS);
+}
+
+function updateAI() {
+	var r = gameState.thrones[1].row;
+	var empty = false;
+	for (var i = gameState.map.height; i >= 0; --i) {
+		for (var j = 0; j < gameState.map.width; j++) {
+			if (!isLandOccupied(i-1, j, 2)) {
+				empty = true;
+				if(Math.random() < 0.9){
+					if(Math.random() < 0.9){
+						if (gameState.coins[1] > PRICES['BUILD_PIG_RANCH']) {
+							gameState.AI.ranches++;
+							gameState.coins[1] -= PRICES['BUILD_PIG_RANCH'];
+							issueCommand(COMMAND.BUILD_PIG_RANCH, [i-1, j, 1]);
+							break;
+						}
+					} else {
+						if (gameState.coins[1] > PRICES['BUILD_TOWER']) {
+							gameState.AI.towers++;
+							gameState.coins[1] -= PRICES['BUILD_TOWER'];
+							issueCommand(COMMAND.BUILD_TOWER, [i-1, j, 1]);
+							break;
+						}
+					}
+				}
+				if ((gameState.AI.farms+gameState.AI.fences)/(gameState.AI.ranches+gameState.AI.towers+1) > 10) break;
+			} 
+			if (!isLandOccupied(i, j, 1)) {
+				empty = true;
+				if (Math.random() < 0.8) {
+					if(Math.random() < 0.7){
+						if (gameState.AI.farms < 30 && gameState.coins[1] > PRICES['BUILD_FARM']) {
+
+							gameState.AI.farms++;
+							gameState.coins[1] -= PRICES['BUILD_FARM'];
+							issueCommand(COMMAND.BUILD_FARM, [i, j, 1]);
+							break;
+						}
+					} else if (Math.random() < 0.001) {
+						if (gameState.coins[1] > PRICES['BUILD_FENCE']) {
+							gameState.AI.fences++;
+							gameState.coins[1] -= PRICES['BUILD_FENCE'];
+							issueCommand(COMMAND.BUILD_FENCE, [i, j, 1]);
+							break;
+						}
+					}
+				}
+			}
+			if (empty) break;
+		}
+		if(empty) break;
+	}
 }

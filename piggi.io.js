@@ -80,6 +80,7 @@ io.on('connection', function(socket) {
 			title : msg,
 			hostId : currentId,
 			guestId : -1,
+			chosenMap : 0,
 		}
 		//console.log("room created: " + room.id);
 
@@ -97,6 +98,7 @@ io.on('connection', function(socket) {
 			hostId : room.hostId,
 			guestId : room.guestId,
 			hostname : currentPlayer.username,
+			chosenMap : 0,
 			full : false,
 		};
 
@@ -114,7 +116,7 @@ io.on('connection', function(socket) {
 				r.guestId = currentId;
 				currentPlayer.room = r;
 				currentPlayer.state = 'room';
-				socket.emit('room-joined', roomId);
+				socket.emit('room-joined', r);
 
 				var roomOwner = serverState.player[r.hostId];
 				roomOwner.socket.emit('room-visitor', {
@@ -127,6 +129,11 @@ io.on('connection', function(socket) {
 		} else {
 			socket.emit('room-unavailable', roomId);
 		}
+	});
+
+	socket.on('map-change', function(mid) {
+		currentPlayer.room.chosenMap = mid;
+		sendToOtherPlayerInRoom('map-change', mid);
 	});
 
 	socket.on('disconnect', function() {
@@ -229,9 +236,10 @@ io.on('connection', function(socket) {
 		if (!currentPlayer.room) return;
 		if (currentPlayer.room.guestId != -1) {
 			// send map, team a team b info
+			var t = Math.random() < 0.5 ? 0 : 1;
 			broadcastToRoom('start-game', {
-				'host' : 0,
-				'guest' : 1,
+				'host' : t,
+				'guest' : (t+1)%2,
 			});
 		}
 	});

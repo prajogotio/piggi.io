@@ -63,7 +63,7 @@
 		</div>
 
 		<div id="create-room-form">
-			<div class='form-heading'>Create Match Room</div>
+			<div class='form-heading'>Create Game Room</div>
 			<div class='form-input'>
 				<div>Room Title: </div>
 				<input type="text" id="room-title">
@@ -81,17 +81,33 @@
 		<div class="sub-heading">Room Info</div>
 		<div class="room-frame-info">
 			<div id="room-frame-title">Room Title</div>
+			<div class="map-info" style="padding-top:8px;padding-bottom:8px">
+				<div>Map:</div>
+				<div class="float-left">
+					<canvas id="map-info-canvas" style="width:100px;height:100px"></canvas>
+				</div>
+				<div class="float-left" style="padding-left:8px">
+					<div id="map-title"></div>
+					<div id="map-dimension"></div>
+				</div>
+				<div class="clear-fix"></div>
+			</div>
+		<div id="map-options" class="map-options">
+			<div id="next-map" class="button float-right">Next Map</div>
+			<div id="prev-map" class="button float-left">Previous Map</div>
+			<div class="clear-fix"></div>
+		</div>
 		</div>
 		<div class="sub-heading">Player List</div>
 		<div class="room-frame-player-list">
 			<div class="float-left even">
 				<div class="section-title">Host</div>
-				<div id="room-frame-host">
+				<div id="room-frame-host" style="background-color:rgba(0,0,0,0.2)">
 				</div>
 			</div>
 			<div class="float-right even">
 				<div class="section-title" id="guest-title">Guest</div>
-				<div id="room-frame-guest">
+				<div id="room-frame-guest" style="background-color:rgba(0,0,0,0.2)">
 				</div>
 			</div>
 			<div class="clear-fix"></div>
@@ -124,5 +140,9 @@
 		</div>
 	</div>
 	<div id="game-notice-box"></div>
+	<div id="tutorial-div">
+		<div>Build Farms to get more coins. Build Ranches to produce pigs. Pigs production consume coins. Build Towers and Fences to defend againts pigs. Upgrade Tower to unlock Castle and Wall. Upgrade Ranch to unlock Pig HQ and Garden</div>
+		<div id="tutorial-ok-button" class="button">OK</div>
+	</div>
 </body>
 </html>

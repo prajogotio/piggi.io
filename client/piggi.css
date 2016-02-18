@@ -336,3 +336,26 @@ body{
 	color:black;
 	font-weight: 100;
 }
+
+#tutorial-div {
+	position:absolute;
+	top:50%;
+	left:50%;
+	transform:translate(-50%,-50%);
+	font-size:22px;
+	color:white;
+	font-family: helvetica;
+	font-weight: 100;
+	z-index:90;
+	background-color:rgba(0,0,0,0.7);
+	display:none;
+	padding:40px;
+}
+
+#tutorial-ok-button {
+	position:relative;
+	text-align:center;
+	width:80%;
+	left:10%;
+	top:10px;
+}
