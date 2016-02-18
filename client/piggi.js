@@ -1898,6 +1898,7 @@ function startSinglePlayerGame() {
 
 	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
 	clientState.isGameOngoing = true;
+	clientState.isSinglePlayer = true;
 
 	createNewGame(clientState.currentRoom.chosenMap);
 
