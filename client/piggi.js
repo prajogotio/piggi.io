@@ -53,7 +53,7 @@ var asset = {
 		"asset/pig_coin.png",
 		"asset/numbers.png",
 		"asset/locked_icon.png",
-		"asset/grass01.jpg", 
+		"asset/pigidow.jpg", 
 	],
 	images : {},
 	assetSoundList : [
@@ -100,6 +100,8 @@ var CONSTANTS = {
 	SCALER : 1.5,
 	SEND_DELAY : 100,
 }
+
+var maps = [];
 
 var gameState = {
 
@@ -194,6 +196,7 @@ function allAssetsLoadedHandler() {
 	clientState.mouseShadowImg = asset.images["asset/mouse_shadow.png"];
 	clientState.mouse[0] = clientState.canvas.width/2;
 	clientState.mouse[1] = clientState.canvas.height/2;
+	generateMaps();
 
 	registerAppEventHandler();
 
@@ -213,8 +216,7 @@ function startGame() {
 
 	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
 	// example game
-	gameState = createNewGame(20, 32, "asset/grass01.jpg");
-	gameState.thrones.push(new Throne(0, 0, 0), new Throne(30, 18, 1));
+	createNewGame(0);
 
 	clientState.menuBar = new MenuBar();
 
@@ -244,7 +246,11 @@ function startGame() {
 	}, CONSTANTS.FPS);
 }
 
-function createNewGame(mapWidth, mapHeight, mapURI) {
+function createNewGame(mid) {
+	var map = maps[mid];
+	var mapWidth = map.width;
+	var mapHeight = map.height;
+	var mapURI = map.asset;
 	var state = {
 		map : {
 			width : mapWidth,
@@ -282,7 +288,12 @@ function createNewGame(mapWidth, mapHeight, mapURI) {
 		isGameOver : false,
 		madeDeclaration : false,
 	}
-	return state;
+
+	gameState = state;
+
+	for (var i = 0; i < map.thrones.length; ++i) {
+		state.thrones.push(new Throne(map.thrones[i][0], map.thrones[i][1], i));
+	}
 }
 
 function updateCamera() {
@@ -304,10 +315,13 @@ function updateCamera() {
 		camera[1] += dM;
 	}
 	var overflowMargin = 180;
-	if (camera[0] < 0) camera[0] = 0;
-	if (camera[1] < 0) camera[1] = 0;
-	camera[0] = Math.min(camera[0], gameState.map.size*gameState.map.width-clientState.canvas.width);
-	camera[1] = Math.min(camera[1], gameState.map.size*gameState.map.height+overflowMargin-clientState.canvas.height);
+	var yoverflowMargin = Math.max(0, (clientState.canvas.width - gameState.map.height*gameState.map.size)/2)
+	var xoverflowMargin = Math.max(0, (clientState.canvas.width - gameState.map.width*gameState.map.size)/2);
+	if (camera[0] < -xoverflowMargin) camera[0] = -xoverflowMargin;
+	if (camera[1] < -yoverflowMargin) camera[1] = -yoverflowMargin;
+	camera[0] = Math.min(camera[0], gameState.map.size*gameState.map.width+xoverflowMargin-clientState.canvas.width);
+	camera[1] = Math.min(camera[1], gameState.map.size*gameState.map.height+overflowMargin+yoverflowMargin-clientState.canvas.height);
+
 }
 
 function renderGame() {
@@ -427,6 +441,13 @@ function updateGame() {
 
 	if (gameState.snapshot) {
 		if (gameState.snapshot.declaredVictory[0] || gameState.snapshot.declaredVictory[1]) {
+			gameOver();
+			return;
+		}
+	}
+
+	if (clientState.isSinglePlayer) {
+		if (gameState.declaredVictory[0] || gameState.declaredVictory[1]) {
 			gameOver();
 			return;
 		}
@@ -1615,9 +1636,7 @@ function testModule() {
 function startBackgroundAnimation() {
 	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
 	// example game
-	gameState = createNewGame(20, 32, "asset/grass01.jpg");
-	gameState.thrones.push(new Throne(0, 0, 0), new Throne(30, 18, 1));
-
+	createNewGame(0);
 	gameState.flocks.push(new Pig(new Vec2(canvas.width/2, canvas.height/2), 0));
 
 	//clientState.camera[0] = gameState.thrones[clientState.team].pos.x-clientState.canvas.width/2;
@@ -1719,4 +1738,14 @@ function hideNoticeBox() {
 function isBuildingDestroyable(r, c, team) {
 	var entry = gameState.map.entry[r*gameState.map.width+c];
 	return entry && entry.team == team && entry.destroyable;
+}
+
+function generateMaps() {
+	maps.push({
+		title : 'Pigidow',
+		asset : 'asset/pigidow.jpg',
+		width : 20,
+		height : 32,
+		thrones : [[0,0], [30,18]],
+	});
 }
