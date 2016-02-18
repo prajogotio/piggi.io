@@ -38,6 +38,7 @@ var asset = {
 		"asset/throne.png",
 		"asset/mouse.png",
 		"asset/mouse_shadow.png",
+		"asset/destroy.png",
 		"asset/tower_icon.png",
 		"asset/ranch_icon.png",
 		"asset/farm_icon.png",
@@ -75,6 +76,8 @@ var COMMAND = {
 	'BUILD_PIG_HQ' : 10,
 	'BUILD_WALL' : 11,
 	'SYNCHRONIZED' : 12,
+	'VICTORY' : 13,
+	'DESTROY' : 14,
 }
 
 var PRICES = {
@@ -95,7 +98,7 @@ var CONSTANTS = {
 	MAX_COINS : 9999,
 	FPS : 1000/30,
 	SCALER : 1.5,
-	SEND_DELAY : 500,
+	SEND_DELAY : 100,
 }
 
 var gameState = {
@@ -225,16 +228,19 @@ function startGame() {
 
 	gameState.scheduler = setInterval(function() {
 		// game routine
-		testModule();
-		handleCommands();
-		updateGame();
+		//testModule();
+		if (!gameState.isGameOver) {
+			handleCommands();
+			updateGame();
+		}
 		updateCamera();
 		renderGame();
-
 		renderMenuBar();
 		drawMouse();
 
-		sendCommandLog();
+		if (!gameState.isGameOver) {
+			sendCommandLog();
+		}
 	}, CONSTANTS.FPS);
 }
 
@@ -271,6 +277,10 @@ function createNewGame(mapWidth, mapHeight, mapURI) {
 		lastSent : 0,
 		localCommandLog : [],
 		commandBackLog : [[], []],
+
+		declaredVictory : [false, false],
+		isGameOver : false,
+		madeDeclaration : false,
 	}
 	return state;
 }
@@ -351,6 +361,11 @@ function renderGame() {
 }
 
 function drawMouse() {
+	// must have pointer lock
+	if (!clientState.mouseTrapped) {
+		showNoticeBox("Click on the screen to move the piggi mouse.");
+	}
+
 	var g = clientState.g;
 	g.save();
 	g.translate(clientState.mouse[0], clientState.mouse[1]);
@@ -358,7 +373,11 @@ function drawMouse() {
 	g.globalAlpha = 0.2;
 	g.drawImage(clientState.mouseShadowImg, 0, 0, 128, 128, 3, 10, 30, 30);
 	g.restore();
-	g.drawImage(clientState.mouseImg, 0, 0, 128, 128, 0, 0, 32, 32);
+	if (clientState.state == 'DESTROY') {
+		g.drawImage(asset.images['asset/destroy.png'], 0, 0, 128, 128, 0, 0, 32, 32);
+	} else {
+		g.drawImage(clientState.mouseImg, 0, 0, 128, 128, 0, 0, 32, 32);
+	}
 	g.restore();
 }
 
@@ -369,6 +388,13 @@ function stateDependentRendering(g) {
 		g.fillStyle = (isLandOccupied(pos[0],pos[1],clientState.buildingSize) ? "red":"green");
 		g.globalAlpha = 0.5;
 		g.fillRect(pos[1]*gameState.map.size-clientState.camera[0],pos[0]*gameState.map.size-clientState.camera[1],clientState.buildingSize*gameState.map.size,clientState.buildingSize*gameState.map.size);
+		g.restore();
+	} else if (clientState.state == 'DESTROY') {
+		var pos = computeMapLocation(clientState.mouse[0]+clientState.camera[0],clientState.mouse[1]+clientState.camera[1]);
+		g.save();
+		g.fillStyle = (!isBuildingDestroyable(pos[0],pos[1],clientState.team) ? "red":"green");
+		g.globalAlpha = 0.5;
+		g.fillRect(pos[1]*gameState.map.size-clientState.camera[0],pos[0]*gameState.map.size-clientState.camera[1],gameState.map.size,gameState.map.size);
 		g.restore();
 	}
 }
@@ -397,7 +423,23 @@ function updateGame() {
 		createSnapshot();
 	}
 
+	
+
+	if (gameState.snapshot) {
+		if (gameState.snapshot.declaredVictory[0] || gameState.snapshot.declaredVictory[1]) {
+			gameOver();
+			return;
+		}
+	}
+
 	gameState.timestep++;
+
+	// victory check must be on the next timestep
+	var other = (clientState.team + 1)%2;
+	if (!gameState.thrones[other].isAlive && !gameState.madeDeclaration) {
+		gameState.madeDeclaration = true;
+		issueCommand(COMMAND.VICTORY, [clientState.team]);
+	}
 }
 
 
@@ -488,23 +530,18 @@ function registerAppEventHandler() {
 	}
 
 	function changeCallback() {
-		if(!checkIfPointerLocked()){
-			// Pointer Lock
-			canvas.requestPointerLock = canvas.requestPointerLock ||
-					     canvas.mozRequestPointerLock ||
-					     canvas.webkitRequestPointerLock;
-			// Ask the browser to lock the pointer
-			canvas.requestPointerLock();
-		}
 		if (checkIfPointerLocked()) {
 		  // Pointer was just locked
 		  // Enable the mousemove listener
+		  hideNoticeBox();
 		  document.addEventListener("mousemove", moveCallback, false);
 		  clientState.mouse = [canvas.width/2, canvas.height/2];
+		  clientState.mouseTrapped = true;
 		} else {
 		  // Pointer was just unlocked
 		  // Disable the mousemove listener
 		  document.removeEventListener("mousemove", moveCallback, false);
+		  clientState.mouseTrapped = false;
 		}
 	}
 
@@ -755,11 +792,18 @@ function registerGameEventHandler() {
 					clientState.menuBar.reset();
 					issueCommand(clientState.currentCommand, [pos[0], pos[1], clientState.team]);
 				}
+			} else if (clientState.state == 'DESTROY') {
+				var pos = computeMapLocation(x, y);
+				if (isBuildingDestroyable(pos[0], pos[1], clientState.team)) {
+					clientState.state = 'NONE';
+					issueCommand(COMMAND.DESTROY, [pos[0], pos[1], clientState.team]);
+					clientState.menuBar.reset();
+				}
 			}
 		}
 		else if (e.buttons == 2) {
 			// RIGHT CLICK
-			if (clientState.state == 'BUILDING') {
+			if (clientState.state == 'BUILDING' || clientState.state == 'DESTROY') {
 				// cancel 
 				clientState.menuBar.deselect.onclick();
 			}
@@ -847,7 +891,6 @@ function registerGameEventHandler() {
 			clearInterval(gameState.scheduler);
 			//gameState.flocks.push(new Pig(new Vec2(x,y), clientState.team));
 		}
-
 
 	}
 	
@@ -1010,6 +1053,27 @@ function executeCommand(c, isRedoingCommandLog) {
 	else if (type == COMMAND.SYNCHRONIZED) {
 		gameState.lastSynchronized = gameState.timestep;
 	}
+
+	else if (type == COMMAND.VICTORY) {
+		// params[0] : winning team
+		var other = (params[0]+1)%2;
+		if (gameState.declaredVictory[0] || gameState.declaredVictory[1]) {
+			return;
+		}
+		if (gameState.thrones[other].isAlive) {
+			gameState.madeDeclaration = false;
+			return;
+		}
+		gameState.declaredVictory[params[0]] = true;
+	}
+
+	else if (type == COMMAND.DESTROY) {
+		// params[0] r, params[1] c, params[2] team
+		if (isBuildingDestroyable(params[0], params[1], params[2])) {
+			var entry = gameState.map.entry[params[0]*gameState.map.width+params[1]];
+			entry.receiveDamage(1e9);
+		}
+	}
 }
 
 function handleLocalCommand() {
@@ -1023,7 +1087,8 @@ function handleLocalCommand() {
 }
 
 
-function handleCommands () {
+function handleCommands() {
+	if (gameState.isGameOver) return;
 	var other = (clientState.team + 1) % 2;
 	if (gameState.commandBackLog[other].length > 0 && gameState.commandBackLog[other][0][0] < gameState.timestep) {
 		// rollback because we have not executed enemy's commands on
@@ -1204,11 +1269,11 @@ function generateRoomItem(room) {
 
 function refreshRoomItem(room) {
 	var div = room.div;
-	var html = "<div>Title: ["+room.id+"] ";
+	var html = "<div class='room-item-title'>["+room.id+"] ";
 		html += room.title+"</div>";
-		html += "<div>Created by: ["+room.hostId+"] ";
+		html += "<div class='room-item-owner'>Owner: ["+room.hostId+"] ";
 		html += room.hostname+"</div>";
-		html += "<div>Status: "+(room.full?'Full':'Available')+"</div>";
+		html += "<div class='room-item-status'>Status: "+(room.full?'<span class="full">Full</span>':'<span class="avail">Available</span>')+"</div>";
 	div.innerHTML = html;
 }
 
@@ -1270,15 +1335,20 @@ function refreshRoom() {
 	document.getElementById('room-frame-title').innerHTML = "Room Title : [" + clientState.currentRoom.id + "] " + clientState.currentRoom.title;
 	document.getElementById('start-game-button').style.display = clientState.isHost ? 'block' : 'none';
 	document.getElementById('room-frame-guest').innerHTML = (clientState.currentRoom.guestId == -1 ? 'Waiting.' : '['+clientState.currentRoom.guestId+'] '+clientState.player[clientState.currentRoom.guestId].username);
+	if (clientState.currentRoom.guestId == -1) {
+		document.getElementById('guest-title').style.setProperty('background-color', 'rgba(255,100,100,0.5)');
+	} else {
+		document.getElementById('guest-title').style.setProperty('background-color', 'rgba(133,255,133,0.5)');
+	}
 	document.getElementById('room-frame-host').innerHTML = '['+clientState.currentRoom.hostId+'] '+clientState.player[clientState.currentRoom.hostId].username;
 }
 
 
 
 
-function sendCommandLog() {
+function sendCommandLog(forceSend) {
 	if (clientState.isSinglePlayer) return;
-	if (gameState.timestep - gameState.lastSent <= CONSTANTS.SEND_DELAY) return;
+	if (!forceSend && gameState.timestep - gameState.lastSent <= CONSTANTS.SEND_DELAY) return;
 	gameState.lastSent = gameState.timestep;
 	gameState.localCommandLog.push([gameState.timestep-1, COMMAND.SYNCHRONIZED, []]);
 	socket.emit('commands', gameState.localCommandLog);
@@ -1310,6 +1380,8 @@ function createSnapshot() {
 		ranchTier : [1, 1],
 		towerTier : [1, 1],
 		coins : [10, 10],
+		declaredVictory : [false, false],
+		madeDeclaration : false,
 	}
 
 	// map data
@@ -1366,7 +1438,9 @@ function createSnapshot() {
 		snapshot.ranchTier[i] = gameState.ranchTier[i];
 		snapshot.towerTier[i] = gameState.towerTier[i];
 		snapshot.coins[i] = gameState.coins[i];
+		snapshot.declaredVictory[i] = gameState.declaredVictory[i];
 	}
+	snapshot.madeDeclaration = gameState.madeDeclaration;
 
 	gameState.snapshot = snapshot;
 
@@ -1431,7 +1505,9 @@ function rollback() {
 		gameState.ranchTier[i] = snapshot.ranchTier[i];
 		gameState.towerTier[i] = snapshot.towerTier[i];
 		gameState.coins[i] = snapshot.coins[i];
+		gameState.declaredVictory[i] = snapshot.declaredVictory[i];
 	}
+	gameState.madeDeclaration = snapshot.madeDeclaration;
 
 }
 
@@ -1566,4 +1642,81 @@ function startBackgroundAnimation() {
 		updateCamera();
 		renderGame();
 	}, CONSTANTS.FPS);
+}
+
+function gameOver() {
+	if (!clientState.isGameOngoing) return;
+	gameState.isGameOver = true;
+	clientState.isGameOngoing = false;
+	sendCommandLog(true);
+	showGameOverScreen();
+}
+
+function gameCleanUp() {
+	clientState.state = 'NONE';
+	if(gameState.scheduler){
+		clearInterval(gameState.scheduler);
+	}
+	if (gameState.gameEventHandlerResetFunction) {
+		gameState.gameEventHandlerResetFunction();
+	}
+	hideNoticeBox();
+}
+
+function showGameOverScreen() {
+	if (gameState.declaredVictory[clientState.team]) {
+		document.getElementById("notice-text1").innerHTML = "You Win!";
+	} else {
+		document.getElementById("notice-text1").innerHTML = "You Lose.";
+	}
+	
+	if (clientState.mouseTrapped) {
+		document.getElementById("notice-text2").innerHTML = "Press any key to exit.";
+	} else {
+		document.getElementById("notice-text2").innerHTML = "Click here to exit.";
+	}
+	document.addEventListener("click", clickHandler);
+	document.addEventListener("keydown", keyHandler);
+	function clickHandler() {
+		document.exitPointerLock = document.exitPointerLock    ||
+                           document.mozExitPointerLock ||
+                           document.webkitExitPointerLock;
+
+		document.exitPointerLock();
+		gameCleanUp();
+		document.removeEventListener("click", clickHandler);
+		document.removeEventListener("keydown", keyHandler);
+		document.getElementById("game-over-notice").style.display = 'none';
+		appMoveToState('ROOM_FRAME');
+		startBackgroundAnimation();
+	}
+
+	function keyHandler() {
+		document.exitPointerLock = document.exitPointerLock    ||
+                           document.mozExitPointerLock ||
+                           document.webkitExitPointerLock;
+
+		document.exitPointerLock();
+		gameCleanUp();
+		document.removeEventListener("click", clickHandler);
+		document.removeEventListener("keydown", keyHandler);
+		document.getElementById("game-over-notice").style.display = 'none';
+		appMoveToState('ROOM_FRAME');
+		startBackgroundAnimation();
+	}
+	document.getElementById("game-over-notice").style.display = 'block';
+}
+
+function showNoticeBox(txt) {
+	document.getElementById('game-notice-box').innerHTML = txt;
+	document.getElementById('game-notice-box').style.display = 'block';
+}
+
+function hideNoticeBox() {
+	document.getElementById('game-notice-box').style.display = 'none';
+}
+
+function isBuildingDestroyable(r, c, team) {
+	var entry = gameState.map.entry[r*gameState.map.width+c];
+	return entry && entry.team == team && entry.destroyable;
 }

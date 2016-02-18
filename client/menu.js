@@ -102,7 +102,7 @@ MenuBar.prototype.reset = function() {
 	for (var i = 0; i < this.icons.length; ++i) {
 		this.icons[i].state = 'INACTIVE';
 	}
-	this.deselect.state = 'UNCLICKABLE';
+	this.deselect.toCancel = false;
 }
 
 function MenuIcon(asset, x, y, size) {
@@ -154,6 +154,7 @@ MenuIcon.prototype.onclick = function() {
 		clientState.menuBar.icons[i].state = 'LOCKED';
 	}
 	clientState.menuBar.deselect.state = 'INACTIVE';
+	clientState.menuBar.deselect.toCancel = true;
 	this.state = 'ACTIVE';
 }
 
@@ -362,18 +363,28 @@ WallIcon.prototype.update = function() {
 
 function DeselectIcon(x, y, size) {
 	MenuIcon.call(this, asset.images["asset/deselect_icon.png"], x, y, size);
-	this.state = 'UNCLICKABLE';
+	this.state = 'INACTIVE';
 	this.lockedCoins = 0;
+	this.toCancel = false;
 }
 DeselectIcon.prototype = Object.create(MenuIcon.prototype);
 DeselectIcon.prototype.onclick = function() {
-	for (var i = 0; i < clientState.menuBar.icons.length; ++i) {
-		clientState.menuBar.icons[i].state = 'INACTIVE';
+	if (this.toCancel){
+		for (var i = 0; i < clientState.menuBar.icons.length; ++i) {
+			clientState.menuBar.icons[i].state = 'INACTIVE';
+		}
+		this.state = 'INACTIVE';
+		issueCommand(COMMAND.DESELECT, [clientState.team, this.lockedCoins]);
+		this.lockedCoins = 0;
+		clientState.state = 'NONE';
+		this.toCancel = false;
+	} else {
+		if (clientState.state != 'DESTROY') {
+			clientState.state = 'DESTROY';
+		} else {
+			clientState.state = 'NONE';
+		}
 	}
-	this.state = 'UNCLICKABLE';
-	issueCommand(COMMAND.DESELECT, [clientState.team, this.lockedCoins]);
-	this.lockedCoins = 0;
-	clientState.state = 'NONE';
 }
 DeselectIcon.prototype.update = function() {
 

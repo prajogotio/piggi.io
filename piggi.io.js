@@ -26,7 +26,7 @@ io.on('connection', function(socket) {
 	var currentId = serverState.nextId;
 	serverState.nextId++;
 
-	console.log('connected - [id: '+currentId+']');
+	//console.log('connected - [id: '+currentId+']');
 	
 	var currentPlayer = null;
 
@@ -79,7 +79,7 @@ io.on('connection', function(socket) {
 			hostId : currentId,
 			guestId : -1,
 		}
-		console.log("room created: " + room.id);
+		//console.log("room created: " + room.id);
 
 		serverState.room[room.id] = room;
 		serverState.roomList.push(room.id);
@@ -227,11 +227,13 @@ io.on('connection', function(socket) {
 			});
 		}
 	});
+
+
 	// game synch
 	socket.on('commands', function(msg) {
-	setTimeout(function() {
+	//setTimeout(function() {
 			sendToOtherPlayerInRoom('commands', msg);
-	}, Math.random()*500+400);
+	//}, Math.random()*500+400);
 	});
 });
 
@@ -246,5 +248,5 @@ function broadcastToLobby(event, msg) {
 
 
 http.listen(3000, function() {
-	console.log('HTTPServer is up.');
+	//console.log('HTTPServer is up.');
 });

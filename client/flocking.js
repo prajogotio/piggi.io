@@ -681,6 +681,9 @@ function Building(size, interactionDistance) {
 	// for rendering after death
 	this.PERSISTENCE = 120;
 	this.timeOfDeath = -1;
+
+
+	this.destroyable = true;
 }
 
 Building.prototype.setSprite = function(type, sprite) {

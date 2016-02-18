@@ -38,8 +38,8 @@ function Boar(pos, team) {
 	this.setSprite(this.DEAD, new Sprite(asset.images[addSuffix("asset/boar_death.png", team)], 0, 0, 128, 128, 1, 100));
 	this.sprites[this.ATTACKING].autoReset = false;
 	this.team = team;
-	this.healthPoints = this.maxHealthPoints = 800;
-	this.strength = 100;
+	this.healthPoints = this.maxHealthPoints = 1200;
+	this.strength = 180;
 	this.ATTACK_DELAY = 60;
 }
 
@@ -312,6 +312,7 @@ function Throne(row, col, team) {
 	this.PERSISTENCE = 700;
 	this.healthPoints = this.maxHealthPoints = 10000;
 	this.MAX_INTERACTION = 10000;
+	this.destroyable = false;
 }
 
 Throne.prototype = Object.create(Building.prototype);
