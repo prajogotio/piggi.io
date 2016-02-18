@@ -638,7 +638,12 @@ function registerAppEventHandler() {
 
 	document.getElementById('start-game-button').addEventListener('click', function() {
 		if (clientState.isHost) {
-			socket.emit('request-start-game');
+			if (clientState.isSinglePlayer) {
+				startSinglePlayerGame();
+			} else {
+				socket.emit('request-start-game');
+				displayWaitingScreen();
+			}
 		}
 	});
 
@@ -652,14 +657,18 @@ function registerAppEventHandler() {
 		var mid = clientState.currentRoom.chosenMap - 1;
 		if (mid < 0) mid += maps.length;
 		clientState.currentRoom.chosenMap = mid;
-		socket.emit('map-change', mid);
+		if (!clientState.isSinglePlayer){
+			socket.emit('map-change', mid);
+		}
 		refreshRoom();
 	});
 
 	document.getElementById('next-map').addEventListener('click', function() {
 		var mid = (clientState.currentRoom.chosenMap + 1) % maps.length;
 		clientState.currentRoom.chosenMap = mid;
-		socket.emit('map-change', mid);
+		if (!clientState.isSinglePlayer){
+			socket.emit('map-change', mid);
+		}
 		refreshRoom();
 	});
 
@@ -668,7 +677,15 @@ function registerAppEventHandler() {
 	});	
 
 	document.getElementById('single-player').addEventListener('click', function() {
-		startSinglePlayerGame();
+		clientState.currentRoom = {
+			id : 0,
+			title : 'Single Player',
+			chosenMap : 0,
+			isSinglePlayer : true,
+			hostId : clientState.id,
+		}
+		clientState.isHost = true;
+		appMoveToState('ROOM_FRAME');
 	});
 
 	document.getElementById('tutorial-ok-button').addEventListener('click', function() {
@@ -815,7 +832,8 @@ function registerAppEventHandler() {
 		}
 		clientState.isGameOngoing = true;
 		clientState.isSinglePlayer = false;
-		appMoveToState('GAME_FRAME')
+		appMoveToState('GAME_FRAME');
+		hideWaitingScreen();
 		startGame();
 	});
 
@@ -1401,14 +1419,19 @@ function refreshRoom() {
 	document.getElementById('room-frame-title').innerHTML = "Room Title : [" + clientState.currentRoom.id + "] " + clientState.currentRoom.title;
 	document.getElementById('start-game-button').style.display = clientState.isHost ? 'block' : 'none';
 	document.getElementById('map-options').style.display = clientState.isHost ? 'block' : 'none';
-	document.getElementById('room-frame-guest').innerHTML = (clientState.currentRoom.guestId == -1 ? 'Waiting.' : '['+clientState.currentRoom.guestId+'] '+clientState.player[clientState.currentRoom.guestId].username);
-	if (clientState.currentRoom.guestId == -1) {
-		document.getElementById('guest-title').style.setProperty('background-color', 'rgba(255,100,100,0.5)');
-		document.getElementById('start-game-button').style.setProperty('opacity', '0.5');
+	if (!clientState.currentRoom.isSinglePlayer) {
+		document.getElementById('room-frame-guest').innerHTML = (clientState.currentRoom.guestId == -1 ? 'Waiting.' : '['+clientState.currentRoom.guestId+'] '+clientState.player[clientState.currentRoom.guestId].username);
+		if (clientState.currentRoom.guestId == -1) {
+			document.getElementById('guest-title').style.setProperty('background-color', 'rgba(255,100,100,0.5)');
+			document.getElementById('start-game-button').style.setProperty('opacity', '0.5');
+		} else {
+			document.getElementById('guest-title').style.setProperty('background-color', 'rgba(133,255,133,0.5)');
+			document.getElementById('start-game-button').style.setProperty('opacity', '1.0');
+		}
 	} else {
-		document.getElementById('guest-title').style.setProperty('background-color', 'rgba(133,255,133,0.5)');
-		document.getElementById('start-game-button').style.setProperty('opacity', '1.0');
+		document.getElementById('room-frame-guest').innerHTML = 'Simple Piggi AI';
 	}
+
 	document.getElementById('room-frame-host').innerHTML = '['+clientState.currentRoom.hostId+'] '+clientState.player[clientState.currentRoom.hostId].username;
 
 	var canvas = document.getElementById('map-info-canvas');
@@ -1872,8 +1895,9 @@ function startSinglePlayerGame() {
 	gameState = {};
 
 	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
-	
-	createNewGame(0);
+	clientState.isGameOngoing = true;
+
+	createNewGame(clientState.currentRoom.chosenMap);
 
 	clientState.menuBar = new MenuBar();
 
@@ -1913,6 +1937,7 @@ function startSinglePlayerGame() {
 function updateAI() {
 	var r = gameState.thrones[1].row;
 	var empty = false;
+	if (gameState.timestep % 30 == 0) return;
 	for (var i = gameState.map.height; i >= 0; --i) {
 		for (var j = 0; j < gameState.map.width; j++) {
 			if (!isLandOccupied(i-1, j, 2)) {
