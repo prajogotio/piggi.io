@@ -1934,7 +1934,7 @@ function updateAI() {
 				empty = true;
 				if (Math.random() < 0.8) {
 					if(Math.random() < 0.7){
-						if (gameState.AI.farms < 30 && gameState.coins[1] > PRICES['BUILD_FARM']) {
+						if (gameState.AI.farms < 200 && gameState.coins[1] > PRICES['BUILD_FARM']) {
 
 							gameState.AI.farms++;
 							gameState.coins[1] -= PRICES['BUILD_FARM'];
