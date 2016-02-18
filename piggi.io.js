@@ -160,7 +160,9 @@ io.on('connection', function(socket) {
 			var guestId = currentPlayer.room.guestId;
 			var hostId = currentPlayer.room.hostId;
 			if (guestId != -1) {
-				serverState.player[guestId].socket.emit(event, msg);
+				if(serverState.player[guestId]) {
+					serverState.player[guestId].socket.emit(event, msg);
+				}
 			}
 			if (serverState.player[hostId]){
 				serverState.player[hostId].socket.emit(event, msg);
@@ -173,9 +175,13 @@ io.on('connection', function(socket) {
 			var guestId = currentPlayer.room.guestId;
 			var hostId = currentPlayer.room.hostId;
 			if (guestId != currentId) {
-				serverState.player[guestId].socket.emit(event, msg);
+				if(serverState.player[guestId]){
+					serverState.player[guestId].socket.emit(event, msg);
+				}
 			} else {
-				serverState.player[hostId].socket.emit(event, msg);
+				if (serverState.player[hostId]) {
+					serverState.player[hostId].socket.emit(event, msg);
+				}
 			}
 		}
 	}

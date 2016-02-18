@@ -1337,7 +1337,9 @@ function removeFromOnlineList(id) {
 }
 
 function gameHandlePlayerQuitEvent() {
-
+	// enemy has quit
+	gameState.declaredVictory[clientState.team] = true;
+	gameOver();
 }
 
 function displayErrorMessage(msg) {
