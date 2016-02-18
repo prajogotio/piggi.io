@@ -310,7 +310,7 @@ function Throne(row, col, team) {
 	this.type = this.ATTACK_TYPE;
 	this.SHOW_HEALTHBAR = true;
 	this.PERSISTENCE = 700;
-	this.healthPoints = this.maxHealthPoints = 7000;
+	this.healthPoints = this.maxHealthPoints = 5000;
 	this.MAX_INTERACTION = 10000;
 	this.destroyable = false;
 }
