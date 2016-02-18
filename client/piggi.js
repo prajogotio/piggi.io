@@ -638,7 +638,7 @@ function registerAppEventHandler() {
 
 	document.getElementById('start-game-button').addEventListener('click', function() {
 		if (clientState.isHost) {
-			if (clientState.isSinglePlayer) {
+			if (clientState.currentRoom.isSinglePlayer) {
 				startSinglePlayerGame();
 			} else {
 				socket.emit('request-start-game');
@@ -657,7 +657,7 @@ function registerAppEventHandler() {
 		var mid = clientState.currentRoom.chosenMap - 1;
 		if (mid < 0) mid += maps.length;
 		clientState.currentRoom.chosenMap = mid;
-		if (!clientState.isSinglePlayer){
+		if (!clientState.currentRoom.isSinglePlayer){
 			socket.emit('map-change', mid);
 		}
 		refreshRoom();
@@ -666,7 +666,7 @@ function registerAppEventHandler() {
 	document.getElementById('next-map').addEventListener('click', function() {
 		var mid = (clientState.currentRoom.chosenMap + 1) % maps.length;
 		clientState.currentRoom.chosenMap = mid;
-		if (!clientState.isSinglePlayer){
+		if (!clientState.currentRoom.isSinglePlayer){
 			socket.emit('map-change', mid);
 		}
 		refreshRoom();
