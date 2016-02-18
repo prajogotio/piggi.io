@@ -456,6 +456,12 @@ function updateGame() {
 	}
 
 	if (clientState.isSinglePlayer) {
+		if (!gameState.thrones[0].isAlive) {
+			gameState.declaredVictory[1] = true;
+		}
+		if (!gameState.thrones[1].isAlive) {
+			gameState.declaredVictory[0] = true;
+		}
 		if (gameState.declaredVictory[0] || gameState.declaredVictory[1]) {
 			gameOver();
 			return;
