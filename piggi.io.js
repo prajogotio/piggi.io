@@ -15,7 +15,9 @@ var serverState = {
 	room : {},
 };
 
-app.use(express.static('client'));
+app.use(express.static(__dirname + '/client'));
+
+app.set('port', (process.env.PORT || 3000))
 
 app.get('/', function(req, res) {
 	res.sendFile(__dirname + '/client/piggi.html');
@@ -247,6 +249,6 @@ function broadcastToLobby(event, msg) {
 }
 
 
-http.listen(3000, function() {
+http.listen(app.get('port'), function() {
 	//console.log('HTTPServer is up.');
 });
