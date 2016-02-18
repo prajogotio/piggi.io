@@ -1430,6 +1430,8 @@ function refreshRoom() {
 		}
 	} else {
 		document.getElementById('room-frame-guest').innerHTML = 'Simple Piggi AI';
+		document.getElementById('guest-title').style.setProperty('background-color', 'rgba(133,255,133,0.5)');
+			document.getElementById('start-game-button').style.setProperty('opacity', '1.0');
 	}
 
 	document.getElementById('room-frame-host').innerHTML = '['+clientState.currentRoom.hostId+'] '+clientState.player[clientState.currentRoom.hostId].username;
@@ -1937,7 +1939,7 @@ function startSinglePlayerGame() {
 function updateAI() {
 	var r = gameState.thrones[1].row;
 	var empty = false;
-	if (gameState.timestep % 30 == 0) return;
+	if (gameState.timestep % 30) return;
 	for (var i = gameState.map.height; i >= 0; --i) {
 		for (var j = 0; j < gameState.map.width; j++) {
 			if (!isLandOccupied(i-1, j, 2)) {
