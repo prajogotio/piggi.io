@@ -16,6 +16,13 @@ function Pig(pos, team) {
 
 Pig.prototype = Object.create(FlockPrite.prototype);
 
+Pig.prototype.receiveDamage = function(dmg) {
+	FlockPrite.prototype.receiveDamage.call(this, dmg);
+	if (!this.isAlive) {
+		gameState.numberOfFlocks[this.team]--;
+	}
+}
+
 Pig.prototype.update = function(flock, map) {
 	FlockPrite.prototype.update.call(this, flock, map);
 	if (!this.isAlive) {
@@ -57,7 +64,7 @@ function Tower(row, col, team) {
 	this.attackRadius = 300;
 	this.ATTACK_DELAY = 200/CONSTANTS.SCALER;
 	this.healthPoints = this.maxHealthPoints = 500;
-	this.strength = 80;
+	this.strength = 100;
 	this.team = team;
 	this.MAX_INTERACTION = 12;
 
@@ -82,6 +89,17 @@ Tower.prototype.update = function(flock, map) {
 			return;
 		}
 	}
+
+	for (var i = Math.max(0,this.row-6); i <= Math.min(this.row+6,gameState.map.height); ++i) {
+		for (var j = Math.max(0, this.col-6); j <= Math.min(this.col+6,gameState.map.width); ++j) {
+			var entry = gameState.map.entry[i*gameState.map.width+j];
+			if (entry != null && entry.isAlive && entry.team != this.team) {
+				gameState.arrows.push(new this.weapon(this, entry, this.strength));
+				return;
+			}
+		}
+	}
+
 }
 
 
@@ -243,6 +261,7 @@ PigRanch.prototype = Object.create(Building.prototype);
 PigRanch.prototype.update = function(flock, map) {
 	Building.prototype.update.call(this, flock, map);
 	if (!this.isAlive) return;
+	if (gameState.numberOfFlocks[this.team] >= CONSTANTS.MAX_FLOCKS_PER_TEAM) return;
 	if (this.updateCount - this.lastProduce <= this.PRODUCE_DELAY) {
 		return;
 	}
@@ -261,6 +280,7 @@ PigRanch.prototype.update = function(flock, map) {
 		if (gameState.map.data[r*gameState.map.width+c] == 1) {
 			for (var j = 0; j < this.pigsPerProduction; ++j) {
 				gameState.flocks.push(new this.product(new Vec2((c+0.5)*gameState.map.size, (r+0.5)*gameState.map.size), this.team));
+				gameState.numberOfFlocks[this.team]++;
 			}
 			return;
 		}

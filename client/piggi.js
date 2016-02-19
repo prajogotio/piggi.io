@@ -86,8 +86,8 @@ var COMMAND = {
 var PRICES = {
 	'BUILD_TOWER' : 50,
 	'BUILD_FARM' : 5,
-	'BUILD_PIG_RANCH' : 30,
-	'BUILD_FENCE' : 1,
+	'BUILD_PIG_RANCH' : 50,
+	'BUILD_FENCE' : 5,
 	'UPGRADE_TOWER' : 600,
 	'UPGRADE_PIG_RANCH' : 800,
 	'BUILD_CASTLE' : 240,
@@ -102,6 +102,7 @@ var CONSTANTS = {
 	FPS : 1000/30,
 	SCALER : 1.5,
 	SEND_DELAY : 100,
+	MAX_FLOCKS_PER_TEAM : 50,
 }
 
 var maps = [];
@@ -170,9 +171,9 @@ function initializeAsset() {
 					if (imgData.data[i]-imgData.data[i+1] <= grayMargin &&
 						imgData.data[i+1]-imgData.data[i+2] <= grayMargin &&
 						(imgData.data[i]<100 || imgData.data[i+3] < 255)) continue;
-					imgData.data[i] = Math.min(255, imgData.data[i]*1.1);
-					imgData.data[i+1] = Math.min(255, imgData.data[i+1]*1.3);
-					imgData.data[i+2] = Math.min(255, imgData.data[i+2]*0.8);
+					imgData.data[i] = Math.min(255, imgData.data[i]*1.25);
+					imgData.data[i+1] = Math.min(255, imgData.data[i+1]*0.50);
+					imgData.data[i+2] = Math.min(255, imgData.data[i+2]*0.50);
 				}
 				bg.putImageData(imgData,0,0);
 				bg.restore();
@@ -219,6 +220,8 @@ function startGame() {
 
 	appFrames['GAME_FRAME'].style.setProperty('display', 'block');
 	createNewGame(clientState.currentRoom.chosenMap);
+	gameState.mapSplit = clientState.currentRoom.mapSplit;
+
 
 	clientState.menuBar = new MenuBar();
 
@@ -292,6 +295,9 @@ function createNewGame(mid) {
 		isGameOver : false,
 		madeDeclaration : false,
 
+
+		numberOfFlocks : [0, 0],
+		mapSplit : true,
 	}
 
 	gameState = state;
@@ -408,7 +414,7 @@ function stateDependentRendering(g) {
 	if (clientState.state == 'BUILDING') {
 		var pos = computeMapLocation(clientState.mouse[0]+clientState.camera[0],clientState.mouse[1]+clientState.camera[1]);
 		g.save();
-		g.fillStyle = (isLandOccupied(pos[0],pos[1],clientState.buildingSize) ? "red":"green");
+		g.fillStyle = (isLandOccupied(pos[0],pos[1],clientState.buildingSize, clientState.team) ? "red":"green");
 		g.globalAlpha = 0.5;
 		g.fillRect(pos[1]*gameState.map.size-clientState.camera[0],pos[0]*gameState.map.size-clientState.camera[1],clientState.buildingSize*gameState.map.size,clientState.buildingSize*gameState.map.size);
 		g.restore();
@@ -641,6 +647,7 @@ function registerAppEventHandler() {
 			if (clientState.currentRoom.isSinglePlayer) {
 				startSinglePlayerGame();
 			} else {
+				if (clientState.currentRoom.guestId == -1) return;
 				socket.emit('request-start-game');
 				displayWaitingScreen();
 			}
@@ -681,6 +688,7 @@ function registerAppEventHandler() {
 			id : 0,
 			title : 'Single Player',
 			chosenMap : 0,
+			mapSplit : true,
 			isSinglePlayer : true,
 			hostId : clientState.id,
 		}
@@ -691,6 +699,15 @@ function registerAppEventHandler() {
 	document.getElementById('tutorial-ok-button').addEventListener('click', function() {
 		hideTutorial();
 	})
+
+	document.getElementById('map-split').addEventListener('change', function() {
+		clientState.currentRoom.mapSplit = !this.checked;
+		if (!clientState.currentRoom.isSinglePlayer){
+			socket.emit('map-split-change', !this.checked);
+		}
+		refreshRoom();
+	});
+
 
 	socket.on('id', function(id) {
 		clientState.id = id;
@@ -800,6 +817,12 @@ function registerAppEventHandler() {
 		clientState.currentRoom.chosenMap = mid;
 		refreshRoom();
 	});
+	
+	socket.on('map-split-change', function(mapSplit) {
+		clientState.currentRoom.mapSplit = mapSplit;
+		refreshRoom();
+	})
+
 
 	socket.on('room-deleted', function(roomId) {
 		var tmp = [];
@@ -875,7 +898,7 @@ function registerGameEventHandler() {
 			if (clientState.state == 'BUILDING') {
 				// commit building
 				var pos = computeMapLocation(x, y);
-				if (!isLandOccupied(pos[0], pos[1], clientState.buildingSize)) {
+				if (!isLandOccupied(pos[0], pos[1], clientState.buildingSize, clientState.team)) {
 					clientState.state = 'NONE';
 					clientState.menuBar.reset();
 					issueCommand(clientState.currentCommand, [pos[0], pos[1], clientState.team]);
@@ -985,7 +1008,17 @@ function registerGameEventHandler() {
 	}
 }
 
-function isLandOccupied(row, col, size) {
+function isLandOccupied(row, col, size, team) {
+	// map split?
+	if (gameState.mapSplit){
+		if (team == 0) {
+			if (row >= gameState.map.height/2) return true;
+		}
+		if (team == 1) {
+			if (row < gameState.map.height/2) return true;
+		}
+	}
+
 	// is there building
 	for(var i = 0; i < size; ++i){
 		for (var j = 0; j < size; ++j){
@@ -1024,7 +1057,7 @@ function executeCommand(c, isRedoingCommandLog) {
 		// params[1] col
 		// params[2] team info
 		// if cannot build, return money
-		if (isLandOccupied(params[0], params[1], 2)) {
+		if (isLandOccupied(params[0], params[1], 2, params[2])) {
 			gameState.coins[params[2]] += PRICES['BUILD_TOWER'];
 			return;
 		}
@@ -1032,21 +1065,21 @@ function executeCommand(c, isRedoingCommandLog) {
 		gameState.buildings.push(new Tower(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_FARM) {
-		if (isLandOccupied(params[0], params[1], 1)) {
+		if (isLandOccupied(params[0], params[1], 1, params[2])) {
 			gameState.coins[params[2]] += PRICES['BUILD_FARM'];
 			return;
 		}
 		gameState.buildings.push(new Farm(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_FENCE) {
-		if (isLandOccupied(params[0], params[1], 1)) {
+		if (isLandOccupied(params[0], params[1], 1, params[2])) {
 			gameState.coins[params[2]] += PRICES['BUILD_FENCE'];
 			return;
 		}
 		gameState.buildings.push(new Fence(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_PIG_RANCH) {
-		if (isLandOccupied(params[0], params[1], 2)) {
+		if (isLandOccupied(params[0], params[1], 2, params[2])) {
 			gameState.coins[params[2]] += PRICES['BUILD_PIG_RANCH'];
 			return;
 		}
@@ -1054,28 +1087,28 @@ function executeCommand(c, isRedoingCommandLog) {
 	}
 
 	else if (type == COMMAND.BUILD_CASTLE) {
-		if (isLandOccupied(params[0], params[1], 2)) {
+		if (isLandOccupied(params[0], params[1], 2, params[2])) {
 			gameState.coins[params[2]] += PRICES['BUILD_CASTLE'];
 			return;
 		}
 		gameState.buildings.push(new Castle(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_GARDEN) {
-		if (isLandOccupied(params[0], params[1], 1)) {
+		if (isLandOccupied(params[0], params[1], 1, params[2])) {
 			gameState.coins[params[2]] += PRICES['BUILD_GARDEN'];
 			return;
 		}
 		gameState.buildings.push(new Garden(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_WALL) {
-		if (isLandOccupied(params[0], params[1], 1)) {
+		if (isLandOccupied(params[0], params[1], 1, params[2])) {
 			gameState.coins[params[2]] += PRICES['BUILD_WALL'];
 			return;
 		}
 		gameState.buildings.push(new Wall(params[0], params[1], params[2]));
 	}
 	else if (type == COMMAND.BUILD_PIG_HQ) {
-		if (isLandOccupied(params[0], params[1], 2)) {
+		if (isLandOccupied(params[0], params[1], 2, params[2])) {
 			gameState.coins[params[2]] += PRICES['BUILD_PIG_HQ'];
 			return;
 		}
@@ -1419,6 +1452,8 @@ function refreshRoom() {
 	document.getElementById('room-frame-title').innerHTML = "Room Title : [" + clientState.currentRoom.id + "] " + clientState.currentRoom.title;
 	document.getElementById('start-game-button').style.display = clientState.isHost ? 'block' : 'none';
 	document.getElementById('map-options').style.display = clientState.isHost ? 'block' : 'none';
+	document.getElementById('map-split').checked = !clientState.currentRoom.mapSplit;
+	
 	if (!clientState.currentRoom.isSinglePlayer) {
 		document.getElementById('room-frame-guest').innerHTML = (clientState.currentRoom.guestId == -1 ? 'Waiting.' : '['+clientState.currentRoom.guestId+'] '+clientState.player[clientState.currentRoom.guestId].username);
 		if (clientState.currentRoom.guestId == -1) {
@@ -1483,6 +1518,7 @@ function createSnapshot() {
 		coins : [10, 10],
 		declaredVictory : [false, false],
 		madeDeclaration : false,
+		numberOfFlocks : [0, 0],
 	}
 
 	// map data
@@ -1540,6 +1576,7 @@ function createSnapshot() {
 		snapshot.towerTier[i] = gameState.towerTier[i];
 		snapshot.coins[i] = gameState.coins[i];
 		snapshot.declaredVictory[i] = gameState.declaredVictory[i];
+		snapshot.numberOfFlocks[i] = gameState.numberOfFlocks[i];
 	}
 	snapshot.madeDeclaration = gameState.madeDeclaration;
 
@@ -1607,6 +1644,7 @@ function rollback() {
 		gameState.towerTier[i] = snapshot.towerTier[i];
 		gameState.coins[i] = snapshot.coins[i];
 		gameState.declaredVictory[i] = snapshot.declaredVictory[i];
+		gameState.numberOfFlocks[i] = snapshot.numberOfFlocks[i];
 	}
 	gameState.madeDeclaration = snapshot.madeDeclaration;
 
@@ -1698,7 +1736,7 @@ function testModule() {
 					} else {
 						t = COMMAND.BUILD_FENCE;
 					}
-					if (!isLandOccupied(r, c, bs)) {
+					if (!isLandOccupied(r, c, bs, clientState.team)) {
 						issueCommand(t, [r, c, clientState.team]);
 					}
 				}
@@ -1752,6 +1790,7 @@ function gameOver() {
 }
 
 function gameCleanUp() {
+	clientState.team = 0;
 	clientState.state = 'NONE';
 	clientState.isSinglePlayer = false;
 	if(gameState.scheduler){
@@ -1901,7 +1940,7 @@ function startSinglePlayerGame() {
 	clientState.isSinglePlayer = true;
 
 	createNewGame(clientState.currentRoom.chosenMap);
-
+	gameState.mapSplit = clientState.currentRoom.mapSplit;
 	clientState.menuBar = new MenuBar();
 
 	clientState.team = 0;
@@ -1943,7 +1982,7 @@ function updateAI() {
 	if (gameState.timestep % 30) return;
 	for (var i = gameState.map.height; i >= 0; --i) {
 		for (var j = 0; j < gameState.map.width; j++) {
-			if (!isLandOccupied(i-1, j, 2)) {
+			if (!isLandOccupied(i-1, j, 2, 1)) {
 				empty = true;
 				if(Math.random() < 0.9){
 					if(Math.random() < 0.9){
@@ -1964,7 +2003,7 @@ function updateAI() {
 				}
 				if ((gameState.AI.farms+gameState.AI.fences)/(gameState.AI.ranches+gameState.AI.towers+1) > 10) break;
 			} 
-			if (!isLandOccupied(i, j, 1)) {
+			if (!isLandOccupied(i, j, 1, 1)) {
 				empty = true;
 				if (Math.random() < 0.8) {
 					if(Math.random() < 0.7){

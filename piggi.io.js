@@ -80,6 +80,7 @@ io.on('connection', function(socket) {
 			title : msg,
 			hostId : currentId,
 			guestId : -1,
+			mapSplit : true,
 			chosenMap : 0,
 		}
 		//console.log("room created: " + room.id);
@@ -99,6 +100,7 @@ io.on('connection', function(socket) {
 			guestId : room.guestId,
 			hostname : currentPlayer.username,
 			chosenMap : 0,
+			mapSplit : true,
 			full : false,
 		};
 
@@ -135,6 +137,11 @@ io.on('connection', function(socket) {
 		currentPlayer.room.chosenMap = mid;
 		sendToOtherPlayerInRoom('map-change', mid);
 	});
+
+	socket.on('map-split-change', function(mapSplit) {
+		currentPlayer.room.mapSplit = mapSplit;
+		sendToOtherPlayerInRoom('map-split-change', mapSplit);
+	})
 
 	socket.on('disconnect', function() {
 		// clean up code
