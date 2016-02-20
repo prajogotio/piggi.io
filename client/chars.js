@@ -211,7 +211,7 @@ Farm.prototype.update = function(flock, map) {
 	}
 	this.lastProduce = this.updateCount;
 	gameState.coins[this.team] += this.coinsToHarvest;
-	if (!gameState.isRedoing) gameState.numbers.push(new RenderableNumber(this.pos, this.coinsToHarvest, 22, 'green'));
+	if (!gameState.isRedoing) gameState.numbers.push(new RenderableNumber(this.pos, this.coinsToHarvest, 22, 'green', this.team));
 }
 
 
@@ -342,7 +342,7 @@ PigRanch.prototype.update = function(flock, map) {
 				this.lastProduce = this.updateCount;
 				gameState.numberOfFlocks[this.team]++;
 				gameState.flocks.push(new this.product(new Vec2((c+0.5)*gameState.map.size, (r+0.5)*gameState.map.size), this.team));
-				if (!gameState.isRedoing) gameState.numbers.push(new RenderableNumber(this.pos, this.productPrice, 22, 'red'));
+				if (!gameState.isRedoing) gameState.numbers.push(new RenderableNumber(this.pos, this.productPrice, 22, 'red', this.team));
 			}
 			return;
 		}
@@ -449,11 +449,13 @@ Arrow.prototype.update = function() {
 Arrow.prototype.createSnapshot = function() {
 	FlockPrite.prototype.createSnapshot.call(this);
 	this.snapshot.updateCount = this.updateCount;
+	this.snapshot.damage = this.damage;
 }
 
 Arrow.prototype.rollback = function() {
 	FlockPrite.prototype.rollback.call(this);
 	this.updateCount = this.snapshot.updateCount;
+	this.damage = this.snapshot.damage;
 }
 
 

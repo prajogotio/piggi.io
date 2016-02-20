@@ -105,9 +105,10 @@ var CONSTANTS = {
 	MAX_COINS : 9999,
 	FPS : 1000/30,
 	SCALER : 1.5,
-	SEND_DELAY : 60,
+	SEND_DELAY : 30,
 	MAX_FLOCKS_PER_TEAM : 50,
 	ALLOWED_DELAY : 300,
+	RECOVERED_DELAY : 150,
 	CLOSE_BY : 1,
 	FAR_AWAY : 2,
 }
@@ -246,24 +247,30 @@ function startGame() {
 
 		if (gameState.timestep - gameState.lastSynchronized > CONSTANTS.ALLOWED_DELAY) {
 			showNoticeBox('Enemy is lagging');
-			handleCommands();
 			gameState.isLagging = true;
+			//console.log('start of lag', gameState.timestep);
+		}
+
+		if (gameState.isLagging && gameState.timestep - gameState.lastSynchronized > CONSTANTS.RECOVERED_DELAY) {
+			handleCommands();
 			updateCamera();
 			if (gameState.hasFogOfWar) {
 				updateFogOfWar();
 			}
 			renderGame();
+			if (gameState.hasFogOfWar) {
+				renderFogOfWar();
+			}
 			renderMenuBar();
 			drawMouse();
 			return;
-		}
-
-		if (gameState.isLagging) {
+		} else {
 			gameState.isLagging = false;
 			hideNoticeBox();
 		}
 
 		if (!gameState.isGameOver) {
+			testModule();
 			handleCommands();
 			updateGame();
 		}
@@ -328,7 +335,7 @@ function createNewGame(mid) {
 		thrones : [],
 		ranchTier : [1, 1],
 		towerTier : [1, 1],
-		coins : [10, 10],
+		coins : [600, 600],
 
 		lastSynchronized : -1,
 		lastSent : 0,
@@ -514,16 +521,22 @@ function updateGame() {
 
 	if (gameState.timestep == gameState.lastSynchronized && !clientState.isSinglePlayer) {
 		createSnapshot();
+		// var hash = 0;
+		// for (var i = 0; i < gameState.snapshot.flocks.length; ++i) {
+		// 	hash += gameState.snapshot.flocks[i].velocity.x+gameState.snapshot.flocks[i].velocity.y+gameState.snapshot.flocks[i].pos.x+gameState.snapshot.flocks[i].pos.y+gameState.snapshot.flocks[i].healthPoints;
+		// }
+		// for (var i = 0; i < gameState.snapshot.arrows.length; ++i) {
+		// 	hash += gameState.snapshot.arrows[i].velocity.x+gameState.snapshot.arrows[i].velocity.y+gameState.snapshot.arrows[i].pos.x+gameState.snapshot.arrows[i].pos.y;
+		// }
+		// for (var i = 0; i < gameState.snapshot.thrones.length; ++i) {
+		// 	hash += gameState.snapshot.thrones[i].healthPoints;
+		// }
+		// console.log(gameState.snapshot.timestep, hash);
 	}
 
 	
 
-	if (gameState.snapshot) {
-		if (gameState.snapshot.declaredVictory[0] || gameState.snapshot.declaredVictory[1]) {
-			gameOver();
-			return;
-		}
-	}
+	
 
 	if (clientState.isSinglePlayer) {
 		if (!gameState.thrones[0].isAlive) {
@@ -545,6 +558,13 @@ function updateGame() {
 	if (!gameState.thrones[other].isAlive && !gameState.madeDeclaration) {
 		gameState.madeDeclaration = true;
 		issueCommand(COMMAND.VICTORY, [clientState.team]);
+	}
+
+	if (gameState.snapshot) {
+		if (gameState.snapshot.declaredVictory[0] || gameState.snapshot.declaredVictory[1]) {
+			gameOver();
+			return;
+		}
 	}
 }
 
@@ -1143,6 +1163,7 @@ function computeMapLocation(x, y) {
 }
 
 function issueCommand(type, params) {
+	if (gameState.isLagging) return;
 	gameState.localCommandLog.push([gameState.timestep, type, params]);
 	gameState.commandBackLog[clientState.team].push([gameState.timestep, type, params]);
 }
@@ -1265,7 +1286,7 @@ function executeCommand(c, isRedoingCommandLog) {
 	}
 
 	else if (type == COMMAND.SYNCHRONIZED) {
-		gameState.lastSynchronized = gameState.timestep;
+		gameState.lastSynchronized = timestep;
 	}
 
 	else if (type == COMMAND.VICTORY) {
@@ -1303,7 +1324,7 @@ function handleLocalCommand() {
 
 function handleCommands() {
 	if (gameState.isGameOver) return;
-
+	gameState.trueTime = gameState.timestep;
 
 	var other = (clientState.team + 1) % 2;
 	if (gameState.commandBackLog[other].length > 0 && gameState.commandBackLog[other][0][0] < gameState.timestep) {
@@ -1320,6 +1341,7 @@ function handleCommands() {
 		var backlog = gameState.commandBackLog;
 
 		gameState.timestep++;
+
 		// console.log(currentTimestep, gameState.timestep);
 		// for (var i = 0; i < gameState.commandBackLog[0].length;++i){
 		// 	console.log('0 [',gameState.commandBackLog[0][i][0],']');
@@ -1327,6 +1349,7 @@ function handleCommands() {
 		// for (var i = 0; i < gameState.commandBackLog[1].length;++i){
 		// 	console.log('1 [',gameState.commandBackLog[1][i][0],']');
 		// }
+
 		var i = 0, j = 0;
 		for (var time = gameState.timestep; time < currentTimestep; ++time) {
 			while (i < backlog[0].length && backlog[0][i][0] == time) {
@@ -1352,6 +1375,7 @@ function handleCommands() {
 		}
 		gameState.commandBackLog[other] = gameState.commandBackLog[other].splice(otherIdx);
 		gameState.commandBackLog[local] = gameState.commandBackLog[local].splice(localIdx);
+		
 		// console.log('rem')
 		// for (var i = 0; i < gameState.commandBackLog[0].length;++i){
 		// 	console.log('0 [',gameState.commandBackLog[0][i][0],']');
@@ -1361,8 +1385,9 @@ function handleCommands() {
 		// }
 
 		gameState.isRedoing = false;
-	}
 
+	}
+	if (gameState.isLagging) return;
 
 	// we will execute the new time frame
 	var i = 0, j = 0;	// i and j will point to the next unexecuted command
@@ -1591,15 +1616,18 @@ function refreshRoom() {
 function sendCommandLog(forceSend) {
 	if (clientState.isSinglePlayer) return;
 	if (!forceSend && gameState.timestep - gameState.lastSent <= CONSTANTS.SEND_DELAY) return;
+	
 	gameState.lastSent = gameState.timestep;
-	gameState.localCommandLog.push([gameState.timestep-1, COMMAND.SYNCHRONIZED, []]);
+	gameState.localCommandLog.push([forceSend ? gameState.trueTime : gameState.timestep-1, COMMAND.SYNCHRONIZED, []]);
 	socket.emit('commands', gameState.localCommandLog);
+	// if (forceSend) {
+	// 	console.log("Uda selse game", gameState.localCommandLog);
+	// }
 	gameState.localCommandLog = [];
 
 }
 
 function synchronize(cmd) {
-	
 
 }
 
@@ -1891,9 +1919,9 @@ function startBackgroundAnimation() {
 
 function gameOver() {
 	if (!clientState.isGameOngoing) return;
+	sendCommandLog(true);
 	gameState.isGameOver = true;
 	clientState.isGameOngoing = false;
-	sendCommandLog(true);
 	showGameOverScreen();
 }
 

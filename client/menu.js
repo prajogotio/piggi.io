@@ -101,6 +101,7 @@ MenuBar.prototype.onclick = function(x, y) {
 MenuBar.prototype.reset = function() {
 	for (var i = 0; i < this.icons.length; ++i) {
 		this.icons[i].state = 'INACTIVE';
+		this.icons[i].paid = false;
 	}
 	this.deselect.toCancel = false;
 }
@@ -116,6 +117,7 @@ function MenuIcon(asset, x, y, size) {
 	this.isLocked = false;
 	this.cooldown = 0;
 	this.MAX_COOL_DOWN = 10;
+	this.paid = false;
 }
 
 MenuIcon.prototype.render = function(g) {
@@ -133,6 +135,7 @@ MenuIcon.prototype.render = function(g) {
 	}
 	if (this.state == 'UNCLICKABLE' || this.state == 'LOCKED') {
 		g.fillStyle = "rgba(0,0,0,0.5)";
+		if(this.state == 'LOCKED') g.fillStyle = "rgba(0,0,0,0.8)";
 		g.fillRect(0,0,this.width,this.height);
 	}
 
@@ -151,7 +154,7 @@ MenuIcon.prototype.containsPoint = function(x, y) {
 }
 
 MenuIcon.prototype.onclick = function() {
-	if (this.state == 'UNCLICKABLE' || this.state == 'LOCKED') return;
+	if (this.state == 'UNCLICKABLE' || this.state == 'LOCKED' || this.state == 'ACTIVE') return;
 	for (var i = 0; i < clientState.menuBar.icons.length; ++i) {
 		clientState.menuBar.icons[i].state = 'LOCKED';
 	}
@@ -167,6 +170,7 @@ function PriceMenuIcon(asset, x, y, size, commandType) {
 	this.isAlive = true;
 	this.buildingSize = 1;
 }
+
 PriceMenuIcon.prototype = Object.create(MenuIcon.prototype);
 PriceMenuIcon.prototype.update = function() {
 	if (this.state == 'LOCKED' || this.state == 'ACTIVE' || !this.isAlive) return;
@@ -183,16 +187,17 @@ PriceMenuIcon.prototype.update = function() {
 }
 PriceMenuIcon.prototype.onclick = function() {
 	MenuIcon.prototype.onclick.call(this);
-	if (this.state == 'ACTIVE') {
+	if (this.state == 'ACTIVE' && !this.paid) {
 		issueCommand(COMMAND.BUY, [clientState.team, COMMAND[this.commandType], PRICES[this.commandType], this.buildingSize]);
 		clientState.menuBar.deselect.lockedCoins = PRICES[this.commandType];
 		this.cooldown = this.MAX_COOL_DOWN;
+		this.paid = true;
 	}
 }
 
 PriceMenuIcon.prototype.render = function(g) {
 	MenuIcon.prototype.render.call(this, g);
-	this.renderPrice(g, PRICES[this.commandType]);
+	if (this.state != 'LOCKED') this.renderPrice(g, PRICES[this.commandType]);
 }
 
 PriceMenuIcon.prototype.renderPrice = function(g, price) {
@@ -220,7 +225,7 @@ function TowerIcon(x, y, size) {
 TowerIcon.prototype = Object.create(PriceMenuIcon.prototype);
 TowerIcon.prototype.update = function() {
 	if (clientState.menuBar.upgrade.state == 'ACTIVE') {
-		if (this.tier[clientState.team]==2 || PRICES[this.commandType] > gameState.coins[clientState.team]) {
+		if (this.tier[clientState.team]==2 || PRICES[this.tierCommand] > gameState.coins[clientState.team]) {
 			this.state = 'UNCLICKABLE';
 			return;
 		}
@@ -280,7 +285,7 @@ FarmIcon.prototype = Object.create(PriceMenuIcon.prototype);
 function FenceIcon(x, y, size) {
 	PriceMenuIcon.call(this, asset.images["asset/fence_icon.png"], x, y, size, 'BUILD_FENCE');
 	this.buildingSize = 1;
-	this.MAX_COOL_DOWN = 30;
+	this.MAX_COOL_DOWN = 15;
 }
 FenceIcon.prototype = Object.create(PriceMenuIcon.prototype);
 
@@ -366,7 +371,7 @@ function WallIcon(x, y, size) {
 	PriceMenuIcon.call(this, asset.images["asset/wall_icon.png"], x, y, size, 'BUILD_WALL');
 	this.buildingSize = 1;
 	this.isLocked = true;
-	this.MAX_COOL_DOWN = 30;
+	this.MAX_COOL_DOWN = 15;
 }
 WallIcon.prototype = Object.create(PriceMenuIcon.prototype);
 WallIcon.prototype.update = function() {
@@ -388,6 +393,10 @@ DeselectIcon.prototype = Object.create(MenuIcon.prototype);
 DeselectIcon.prototype.onclick = function() {
 	if (this.toCancel){
 		for (var i = 0; i < clientState.menuBar.icons.length; ++i) {
+			if (clientState.menuBar.icons[i].state == 'ACTIVE') {
+				clientState.menuBar.icons[i].cooldown = 0;
+				clientState.menuBar.icons[i].paid = false;
+			}
 			clientState.menuBar.icons[i].state = 'INACTIVE';
 		}
 		this.state = 'INACTIVE';
@@ -441,16 +450,17 @@ function generateNumber(x, size, color) {
 	}
 }
 
-function RenderableNumber(pos, value, size, color) {
+function RenderableNumber(pos, value, size, color, team) {
 	this.delta = 0;
 	this.MAX_DELTA = 30;
 	this.pos = pos.copy();
 	this.number = generateNumber(value, size, color);
 	this.isAlive = true;
+	this.team = team;
 }
 
 RenderableNumber.prototype.render = function(g) {
-	if (!this.isAlive) return;
+	if (!this.isAlive || this.team != clientState.team) return;
 	if (this.delta >= this.MAX_DELTA) {
 		this.isAlive = false;
 		return;
