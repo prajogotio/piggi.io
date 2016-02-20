@@ -57,6 +57,10 @@ var asset = {
 		"asset/pigidow.jpg", 
 		"asset/snowy-yosemite.jpg",
 		"asset/furpig-valley.jpg",
+		"asset/plus.png",
+		"asset/minus.png",
+		"asset/numbers-red.png",
+		"asset/numbers-green.png",
 	],
 	images : {},
 	assetSoundList : [
@@ -101,8 +105,11 @@ var CONSTANTS = {
 	MAX_COINS : 9999,
 	FPS : 1000/30,
 	SCALER : 1.5,
-	SEND_DELAY : 100,
+	SEND_DELAY : 60,
 	MAX_FLOCKS_PER_TEAM : 50,
+	ALLOWED_DELAY : 300,
+	CLOSE_BY : 1,
+	FAR_AWAY : 2,
 }
 
 var maps = [];
@@ -236,12 +243,45 @@ function startGame() {
 	gameState.scheduler = setInterval(function() {
 		// game routine
 		//testModule();
+
+		if (gameState.timestep - gameState.lastSynchronized > CONSTANTS.ALLOWED_DELAY) {
+			showNoticeBox('Enemy is lagging');
+			handleCommands();
+			gameState.isLagging = true;
+			updateCamera();
+			if (gameState.hasFogOfWar) {
+				updateFogOfWar();
+			}
+			renderGame();
+			renderMenuBar();
+			drawMouse();
+			return;
+		}
+
+		if (gameState.isLagging) {
+			gameState.isLagging = false;
+			hideNoticeBox();
+		}
+
 		if (!gameState.isGameOver) {
 			handleCommands();
 			updateGame();
 		}
+
 		updateCamera();
+
+		if (gameState.hasFogOfWar) {
+			updateFogOfWar();
+		}
+	
+
 		renderGame();
+
+
+		if (gameState.hasFogOfWar) {
+			renderFogOfWar();
+		}
+
 		renderMenuBar();
 		drawMouse();
 
@@ -267,6 +307,8 @@ function createNewGame(mid) {
 			lastUpdated : 0,
 
 			specialEffect : map.specialEffect ? map.specialEffect() : null,
+		
+			fogOfWar : new Int32Array(mapWidth*mapHeight).fill(1),
 		},
 		
 
@@ -277,6 +319,8 @@ function createNewGame(mid) {
 		flocks : [],
 		buildings : [],
 		arrows : [],
+
+		numbers : [],
 
 		timestep : 0,
 
@@ -294,10 +338,13 @@ function createNewGame(mid) {
 		declaredVictory : [false, false],
 		isGameOver : false,
 		madeDeclaration : false,
+		isRedoing : false,
 
 
 		numberOfFlocks : [0, 0],
 		mapSplit : true,
+		hasFogOfWar : clientState.currentRoom ? clientState.currentRoom.fogOfWar : false,
+		isLagging : false
 	}
 
 	gameState = state;
@@ -354,18 +401,35 @@ function renderGame() {
 		Math.max(0,-camera[1]),
 		Math.min(canvas.width, camera[0]+canvas.width), 
 		Math.min(canvas.height, camera[1]+canvas.height));
+
+	
+
 	g.save();
 	g.translate(-camera[0], -camera[1]);
 	
+	if (gameState.mapSplit) {
+		g.save();
+		// if map split, draw line
+		var y = gameState.map.height/2 * gameState.map.size;
+		g.fillStyle = 'rgba(255,200,0,0.2)';
+		g.fillRect(0, y-4, gameState.map.size*gameState.map.width, 8);
+		g.restore();
+	}
 
 	// render the rest
-	var all = [gameState.thrones, gameState.deadbuildings, gameState.buildings, gameState.deadflocks, gameState.deadarrows, gameState.flocks, gameState.arrows];
+	var all = [gameState.thrones, gameState.deadbuildings, gameState.buildings, gameState.deadflocks, gameState.deadarrows, gameState.flocks, gameState.arrows, gameState.numbers];
 
 	for(var i = 0; i < all.length; ++i) {
 		for(var j = 0; j < all[i].length; ++j){
 			all[i][j].render(g);
 		}
 	}
+
+	var tmp = [];
+	for (var i = 0; i < gameState.numbers.length; ++i) {
+		if (gameState.numbers[i].isAlive) tmp.push(gameState.numbers[i]);
+	}
+	gameState.numbers = tmp;
 
 	// for (var i = 0; i < gameState.flocks.length; ++i) {
 	// 	if(gameState.flocks[i].lockOnTarget) {
@@ -414,7 +478,7 @@ function stateDependentRendering(g) {
 	if (clientState.state == 'BUILDING') {
 		var pos = computeMapLocation(clientState.mouse[0]+clientState.camera[0],clientState.mouse[1]+clientState.camera[1]);
 		g.save();
-		g.fillStyle = (isLandOccupied(pos[0],pos[1],clientState.buildingSize, clientState.team) ? "red":"green");
+		g.fillStyle = (isLandOccupied(pos[0],pos[1],clientState.buildingSize, clientState.team) || !isLandViewable(pos[0],pos[1],clientState.buildingSize) ? "red":"green");
 		g.globalAlpha = 0.5;
 		g.fillRect(pos[1]*gameState.map.size-clientState.camera[0],pos[0]*gameState.map.size-clientState.camera[1],clientState.buildingSize*gameState.map.size,clientState.buildingSize*gameState.map.size);
 		g.restore();
@@ -689,6 +753,7 @@ function registerAppEventHandler() {
 			title : 'Single Player',
 			chosenMap : 0,
 			mapSplit : true,
+			fogOfWar : true,
 			isSinglePlayer : true,
 			hostId : clientState.id,
 		}
@@ -701,9 +766,25 @@ function registerAppEventHandler() {
 	})
 
 	document.getElementById('map-split').addEventListener('change', function() {
-		clientState.currentRoom.mapSplit = !this.checked;
+		if (!clientState.isHost){
+			refreshRoom();
+			return;
+		}
+		clientState.currentRoom.mapSplit = this.checked;
 		if (!clientState.currentRoom.isSinglePlayer){
-			socket.emit('map-split-change', !this.checked);
+			socket.emit('map-split-change', this.checked);
+		}
+		refreshRoom();
+	});
+
+	document.getElementById('map-fog').addEventListener('change', function() {
+		if (!clientState.isHost){
+			refreshRoom();
+			return;
+		}
+		clientState.currentRoom.fogOfWar = this.checked;
+		if (!clientState.currentRoom.isSinglePlayer){
+			socket.emit('map-fog-change', this.checked);
 		}
 		refreshRoom();
 	});
@@ -821,7 +902,12 @@ function registerAppEventHandler() {
 	socket.on('map-split-change', function(mapSplit) {
 		clientState.currentRoom.mapSplit = mapSplit;
 		refreshRoom();
-	})
+	});
+
+	socket.on('map-fog-change', function(fogOfWar) {
+		clientState.currentRoom.fogOfWar = fogOfWar;
+		refreshRoom();
+	});
 
 
 	socket.on('room-deleted', function(roomId) {
@@ -898,7 +984,7 @@ function registerGameEventHandler() {
 			if (clientState.state == 'BUILDING') {
 				// commit building
 				var pos = computeMapLocation(x, y);
-				if (!isLandOccupied(pos[0], pos[1], clientState.buildingSize, clientState.team)) {
+				if (!isLandOccupied(pos[0], pos[1], clientState.buildingSize, clientState.team) && isLandViewable(pos[0], pos[1], clientState.buildingSize)) {
 					clientState.state = 'NONE';
 					clientState.menuBar.reset();
 					issueCommand(clientState.currentCommand, [pos[0], pos[1], clientState.team]);
@@ -1037,6 +1123,19 @@ function isLandOccupied(row, col, size, team) {
 		}
 	}
 	return false;
+}
+
+function isLandViewable(row, col, size) {
+	if (!gameState.hasFogOfWar) return true;
+
+	for (var r = row; r < row+size; ++r) {
+		for (var c = col; c < col+size; ++c) {
+			if (r < 0 || c < 0 || r >= gameState.map.height || c >= gameState.map.width) return false;
+			var idx = r * gameState.map.width + c;
+			if (gameState.map.fogOfWar[idx] == 0) return false;
+		}
+	}
+	return true;
 }
 
 function computeMapLocation(x, y) {
@@ -1204,12 +1303,16 @@ function handleLocalCommand() {
 
 function handleCommands() {
 	if (gameState.isGameOver) return;
+
+
 	var other = (clientState.team + 1) % 2;
 	if (gameState.commandBackLog[other].length > 0 && gameState.commandBackLog[other][0][0] < gameState.timestep) {
 		// rollback because we have not executed enemy's commands on
 		// previous timesteps!
 		var currentTimestep = gameState.timestep;
 		rollback();
+
+		gameState.isRedoing = true;
 
 		// gameState.timestep should point to latest synchronized time
 		var i = 0, j = 0;	// i and j will point to the next unexecuted command
@@ -1256,6 +1359,8 @@ function handleCommands() {
 		// for (var i = 0; i < gameState.commandBackLog[1].length;++i){
 		// 	console.log('1 [',gameState.commandBackLog[1][i][0],']');
 		// }
+
+		gameState.isRedoing = false;
 	}
 
 
@@ -1452,8 +1557,9 @@ function refreshRoom() {
 	document.getElementById('room-frame-title').innerHTML = "Room Title : [" + clientState.currentRoom.id + "] " + clientState.currentRoom.title;
 	document.getElementById('start-game-button').style.display = clientState.isHost ? 'block' : 'none';
 	document.getElementById('map-options').style.display = clientState.isHost ? 'block' : 'none';
-	document.getElementById('map-split').checked = !clientState.currentRoom.mapSplit;
-	
+	document.getElementById('map-split').checked = clientState.currentRoom.mapSplit;
+	document.getElementById('map-fog').checked = clientState.currentRoom.fogOfWar;
+
 	if (!clientState.currentRoom.isSinglePlayer) {
 		document.getElementById('room-frame-guest').innerHTML = (clientState.currentRoom.guestId == -1 ? 'Waiting.' : '['+clientState.currentRoom.guestId+'] '+clientState.player[clientState.currentRoom.guestId].username);
 		if (clientState.currentRoom.guestId == -1) {
@@ -1764,6 +1870,8 @@ function startBackgroundAnimation() {
 	var lastChosen = -10000;
 	var changeDelay = 1000;
 	gameState.thrones[1].isAlive = false;
+	gameState.hasFogOfWar = false;
+	gameState.mapSplit = false;
 	gameState.scheduler = setInterval(function() {
 		if (gameState.timestep - lastChosen > changeDelay){
 			gameState.flocks[0].setLockOnTarget({
@@ -1966,7 +2074,15 @@ function startSinglePlayerGame() {
 			updateGame();
 		}
 		updateCamera();
+		if (gameState.hasFogOfWar){
+			updateFogOfWar();
+		}
 		renderGame();
+
+		if (gameState.hasFogOfWar) {
+			renderFogOfWar();
+		}
+
 		renderMenuBar();
 		drawMouse();
 
@@ -2028,4 +2144,95 @@ function updateAI() {
 		}
 		if(empty) break;
 	}
+}
+
+
+function updateFogOfWar() {
+	gameState.map.fogOfWar.fill(0);
+
+	function checkAndSet(r, c) {
+		for (var k = r-4; k <= r+4; ++k) {
+			for (var m = c-4; m <= c+4; ++m) {
+				if (k < 0 || m < 0 || k >= gameState.map.height || m >= gameState.map.width) continue;
+				var dist = Math.abs(k-r)+Math.abs(m-c);
+				if (dist > 6) continue;
+				var idx = k * gameState.map.width + m;
+				gameState.map.fogOfWar[idx] = (dist <= 4 ? CONSTANTS.CLOSE_BY : (gameState.map.fogOfWar[idx] == 0 ? CONSTANTS.FAR_AWAY : gameState.map.fogOfWar[idx]));
+			}
+		}
+	}
+
+	for (var i = 0; i < gameState.flocks.length; ++i) {
+		if (gameState.flocks[i].team != clientState.team) continue;
+		var r = Math.floor(gameState.flocks[i].pos.y/gameState.map.size);
+		var c = Math.floor(gameState.flocks[i].pos.x/gameState.map.size);
+		checkAndSet(r, c);
+	}
+
+	for (var i = 0; i < gameState.deadflocks.length; ++i) {
+		if (gameState.deadflocks[i].team != clientState.team) continue;
+		var r = Math.floor(gameState.deadflocks[i].pos.y/gameState.map.size);
+		var c = Math.floor(gameState.deadflocks[i].pos.x/gameState.map.size);
+		checkAndSet(r, c);
+	}
+
+	for (var i = 0; i < gameState.buildings.length; ++i) {
+		if (gameState.buildings[i].team != clientState.team) continue;
+		var size = gameState.buildings[i].size/gameState.map.size;
+		for (var r = gameState.buildings[i].row; r < gameState.buildings[i].row + size; ++r) {
+			for(var c = gameState.buildings[i].col; c < gameState.buildings[i].col + size; ++c) {
+				checkAndSet(r, c);
+			}
+		}
+	}
+
+	for (var i = 0; i < gameState.deadbuildings.length; ++i) {
+		if (gameState.deadbuildings[i].team != clientState.team) continue;
+		var size = gameState.deadbuildings[i].size/gameState.map.size;
+		for (var r = gameState.deadbuildings[i].row; r < gameState.deadbuildings[i].row + size; ++r) {
+			for(var c = gameState.deadbuildings[i].col; c < gameState.deadbuildings[i].col + size; ++c) {
+				checkAndSet(r, c);
+			}
+		}
+	}
+
+	var throne = gameState.thrones[clientState.team];
+	var size = throne.size/gameState.map.size;
+	for (var r = throne.row; r < throne.row + size; ++r) {
+		for(var c = throne.col; c < throne.col + size; ++c) {
+			checkAndSet(r, c);
+		}
+	}
+
+}
+
+
+function renderFogOfWar() {
+	var g = clientState.g;
+	var r = Math.max(0, Math.floor(clientState.camera[1]/gameState.map.size));
+	var c = Math.max(0, Math.floor(clientState.camera[0]/gameState.map.size));
+	var width = Math.floor(clientState.canvas.width/gameState.map.size)+1;
+	var height = Math.floor(clientState.canvas.height/gameState.map.size)+1;
+	g.save();
+	g.translate(-clientState.camera[0], -clientState.camera[1]);
+	
+
+	for (var row = r; row <= r+height; ++row) {
+		for (var col = c; col <= c+width; ++col) {
+			if (row < 0 || col < 0 || row >= gameState.map.height || col >= gameState.map.width) continue;
+			var idx = row * gameState.map.width + col;
+			if (gameState.map.fogOfWar[idx] != CONSTANTS.CLOSE_BY) {
+				var x = col*gameState.map.size;
+				var y = row*gameState.map.size;
+				if (gameState.map.fogOfWar[idx] == 0) {
+					g.fillStyle = 'rgba(0,0,0,0.6)';
+				} else {
+					g.fillStyle = 'rgba(0,0,0,0.4)';
+				}
+				g.fillRect(x, y, gameState.map.size, gameState.map.size);
+			}
+		}
+	}
+
+	g.restore();
 }

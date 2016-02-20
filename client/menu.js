@@ -75,7 +75,7 @@ MenuBar.prototype.render = function(g) {
 	g.fillStyle = "rgba(255,245,200,0.5)";
 	g.fillRect(1,3,cW-coinSize-4-2,cH-6);
 	g.translate(4,4);
-	var c = generateNumber(gameState.coins[clientState.team], 32);
+	var c = generateNumber(gameState.coins[clientState.team], 32, 'white');
 	g.translate(cW-coinSize-8-c.width-coinSize*0.5/2,0);
 	c.render(g);
 	g.restore();
@@ -114,6 +114,8 @@ function MenuIcon(asset, x, y, size) {
 	this.width = size;
 	this.height = size;
 	this.isLocked = false;
+	this.cooldown = 0;
+	this.MAX_COOL_DOWN = 10;
 }
 
 MenuIcon.prototype.render = function(g) {
@@ -168,6 +170,11 @@ function PriceMenuIcon(asset, x, y, size, commandType) {
 PriceMenuIcon.prototype = Object.create(MenuIcon.prototype);
 PriceMenuIcon.prototype.update = function() {
 	if (this.state == 'LOCKED' || this.state == 'ACTIVE' || !this.isAlive) return;
+	if (this.cooldown > 0) {
+		this.state = 'UNCLICKABLE';
+		this.cooldown--;
+		return;
+	}
 	if (PRICES[this.commandType] <= gameState.coins[clientState.team]) {
 		this.state = 'INACTIVE';
 	} else {
@@ -179,6 +186,7 @@ PriceMenuIcon.prototype.onclick = function() {
 	if (this.state == 'ACTIVE') {
 		issueCommand(COMMAND.BUY, [clientState.team, COMMAND[this.commandType], PRICES[this.commandType], this.buildingSize]);
 		clientState.menuBar.deselect.lockedCoins = PRICES[this.commandType];
+		this.cooldown = this.MAX_COOL_DOWN;
 	}
 }
 
@@ -190,7 +198,7 @@ PriceMenuIcon.prototype.render = function(g) {
 PriceMenuIcon.prototype.renderPrice = function(g, price) {
 	g.save();
 	g.translate(this.x-this.width/2,this.y-this.height/2);
-	var c = generateNumber(price, 14);
+	var c = generateNumber(price, 14, 'white');
 	g.translate(this.width-c.width-2, this.height-c.height-2);
 	g.fillStyle = "rgba(0,0,0,0.5)";
 	g.fillRect(0,0,c.width,c.height);
@@ -207,6 +215,7 @@ function TowerIcon(x, y, size) {
 	this.buildingSize = 2;
 	this.tier = gameState.towerTier;
 	this.tierCommand = 'UPGRADE_TOWER';
+	this.MAX_COOL_DOWN = 60;
 }
 TowerIcon.prototype = Object.create(PriceMenuIcon.prototype);
 TowerIcon.prototype.update = function() {
@@ -226,6 +235,7 @@ TowerIcon.prototype.onclick = function() {
 			return;
 		}
 		issueCommand(COMMAND[this.tierCommand], [clientState.team]);
+		this.cooldown = this.MAX_COOL_DOWN;
 		clientState.menuBar.reset();
 	} else {
 		PriceMenuIcon.prototype.onclick.call(this);
@@ -245,6 +255,7 @@ function RanchIcon(x, y, size) {
 	this.buildingSize = 2;
 	this.tier = gameState.ranchTier;
 	this.tierCommand = 'UPGRADE_PIG_RANCH';
+	this.MAX_COOL_DOWN = 90;
 }
 RanchIcon.prototype = Object.create(PriceMenuIcon.prototype);
 RanchIcon.prototype.update = function() {
@@ -261,6 +272,7 @@ RanchIcon.prototype.render = function(g) {
 function FarmIcon(x, y, size) {
 	PriceMenuIcon.call(this, asset.images["asset/farm_icon.png"], x, y, size, 'BUILD_FARM');
 	this.buildingSize = 1;
+	this.MAX_COOL_DOWN = 30;
 }
 FarmIcon.prototype = Object.create(PriceMenuIcon.prototype);
 
@@ -268,6 +280,7 @@ FarmIcon.prototype = Object.create(PriceMenuIcon.prototype);
 function FenceIcon(x, y, size) {
 	PriceMenuIcon.call(this, asset.images["asset/fence_icon.png"], x, y, size, 'BUILD_FENCE');
 	this.buildingSize = 1;
+	this.MAX_COOL_DOWN = 30;
 }
 FenceIcon.prototype = Object.create(PriceMenuIcon.prototype);
 
@@ -305,6 +318,7 @@ function CastleIcon(x, y, size) {
 	PriceMenuIcon.call(this, asset.images["asset/castle_icon.png"], x, y, size, 'BUILD_CASTLE');
 	this.buildingSize = 2;
 	this.isLocked = true;
+	this.MAX_COOL_DOWN = 80;
 }
 CastleIcon.prototype = Object.create(PriceMenuIcon.prototype);
 CastleIcon.prototype.update = function() {
@@ -320,6 +334,7 @@ function PigHQIcon(x, y, size) {
 	PriceMenuIcon.call(this, asset.images["asset/pighq_icon.png"], x, y, size, 'BUILD_PIG_HQ');
 	this.buildingSize = 2;
 	this.isLocked = true;
+	this.MAX_COOL_DOWN = 100;
 }
 PigHQIcon.prototype = Object.create(PriceMenuIcon.prototype);
 PigHQIcon.prototype.update = function() {
@@ -335,6 +350,7 @@ function GardenIcon(x, y, size) {
 	PriceMenuIcon.call(this, asset.images["asset/garden_icon.png"], x, y, size, 'BUILD_GARDEN');
 	this.buildingSize = 1;
 	this.isLocked = true;
+	this.MAX_COOL_DOWN = 30;
 }
 GardenIcon.prototype = Object.create(PriceMenuIcon.prototype);
 GardenIcon.prototype.update = function() {
@@ -350,6 +366,7 @@ function WallIcon(x, y, size) {
 	PriceMenuIcon.call(this, asset.images["asset/wall_icon.png"], x, y, size, 'BUILD_WALL');
 	this.buildingSize = 1;
 	this.isLocked = true;
+	this.MAX_COOL_DOWN = 30;
 }
 WallIcon.prototype = Object.create(PriceMenuIcon.prototype);
 WallIcon.prototype.update = function() {
@@ -392,7 +409,7 @@ DeselectIcon.prototype.update = function() {
 
 
 
-function generateNumber(x, size) {
+function generateNumber(x, size, color) {
 	var d = [];
 	while (x>0) {
 		d.push(x%10);
@@ -403,11 +420,45 @@ function generateNumber(x, size) {
 	var dW = size*0.5;
 	return {
 		render : function(g) {
-			for(var i=0;i<d.length;++i){
-				g.drawImage(asset.images["asset/numbers.png"], d[i]*128, 0, 128, 128, i*dW-(size-dW)/2, 0, size, size);
+			if (color == 'white') {
+				for(var i=0;i<d.length;++i){
+					g.drawImage(asset.images["asset/numbers.png"], d[i]*128, 0, 128, 128, i*dW-(size-dW)/2, 0, size, size);
+				}
+			} else if (color == 'green') {
+				g.drawImage(asset.images["asset/plus.png"], 0, 0, 128, 128, -(size-dW)/2, 0, size, size);
+				for(var i=0;i<d.length;++i){
+					g.drawImage(asset.images["asset/numbers-green.png"], d[i]*128, 0, 128, 128, (i+1)*dW-(size-dW)/2, 0, size, size);
+				}
+			} else {
+				g.drawImage(asset.images["asset/minus.png"], 0, 0, 128, 128, -(size-dW)/2, 0, size, size);
+				for(var i=0;i<d.length;++i){
+					g.drawImage(asset.images["asset/numbers-red.png"], d[i]*128, 0, 128, 128, (i+1)*dW-(size-dW)/2, 0, size, size);
+				}
 			}
 		},
-		width : dW*d.length,
+		width : dW*d.length + (color != 'white' ? dW : 0),
 		height : size,
 	}
+}
+
+function RenderableNumber(pos, value, size, color) {
+	this.delta = 0;
+	this.MAX_DELTA = 30;
+	this.pos = pos.copy();
+	this.number = generateNumber(value, size, color);
+	this.isAlive = true;
+}
+
+RenderableNumber.prototype.render = function(g) {
+	if (!this.isAlive) return;
+	if (this.delta >= this.MAX_DELTA) {
+		this.isAlive = false;
+		return;
+	}
+	g.save();
+	g.translate(this.pos.x - this.number.width/2, this.pos.y - this.number.height/2);
+	this.number.render(g);
+	this.pos.y -= 1.2;
+	g.restore();
+	this.delta++;
 }

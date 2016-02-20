@@ -82,6 +82,7 @@ io.on('connection', function(socket) {
 			guestId : -1,
 			mapSplit : true,
 			chosenMap : 0,
+			fogOfWar : true,
 		}
 		//console.log("room created: " + room.id);
 
@@ -101,6 +102,7 @@ io.on('connection', function(socket) {
 			hostname : currentPlayer.username,
 			chosenMap : 0,
 			mapSplit : true,
+			fogOfWar : true,
 			full : false,
 		};
 
@@ -142,6 +144,11 @@ io.on('connection', function(socket) {
 		currentPlayer.room.mapSplit = mapSplit;
 		sendToOtherPlayerInRoom('map-split-change', mapSplit);
 	})
+
+	socket.on('map-fog-change', function(fogOfWar) {
+		currentPlayer.room.fogOfWar = fogOfWar;
+		sendToOtherPlayerInRoom('map-fog-change', fogOfWar);
+	});
 
 	socket.on('disconnect', function() {
 		// clean up code

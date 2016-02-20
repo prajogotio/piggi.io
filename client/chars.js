@@ -35,6 +35,36 @@ Pig.prototype.update = function(flock, map) {
 	}
 }
 
+Pig.prototype.render = function(g) {
+	if (clientState.team == this.team || !gameState.hasFogOfWar) {
+		FlockPrite.prototype.render.call(this, g);
+	} else {
+		var isObservable = false;
+		var r = Math.floor(this.pos.y/gameState.map.size);
+		var c = Math.floor(this.pos.x/gameState.map.size);
+
+		for(var k=r-1;k<=r+1;++k){
+			for(var m=c-1;m<=c+1;++m){
+				if (k < 0 || m < 0 || k >= gameState.map.height || m >= gameState.map.width) {
+					continue;
+				}
+				var idx = k * gameState.map.width + m;
+				var pos = new Vec2((m+0.5)*gameState.map.size, (k+0.5)*gameState.map.size);
+				if (pos.minus(this.pos).length() < this.radius*1.5) {
+					if (gameState.map.fogOfWar[idx] != 0) {
+						isObservable = true;
+						break;
+					}
+				}
+			}
+			if (isObservable) break;
+		}
+		if (isObservable) {
+			FlockPrite.prototype.render.call(this, g);
+		}
+	}
+}
+
 
 function Boar(pos, team) {
 	FlockPrite.call(this, 100, pos, 32);
@@ -51,8 +81,6 @@ function Boar(pos, team) {
 }
 
 Boar.prototype = Object.create(Pig.prototype);
-
-
 
 function Tower(row, col, team) {
 	Building.call(this, 128, 640);
@@ -102,6 +130,22 @@ Tower.prototype.update = function(flock, map) {
 
 }
 
+Tower.prototype.render = function(g) {
+	if (clientState.team == this.team || !gameState.hasFogOfWar) {
+		Building.prototype.render.call(this, g);
+	} else {
+		var size = this.size/gameState.map.size;
+		for (var r = this.row; r < this.row+size;++r) {
+			for (var c = this.col; c < this.col+size; ++c) {
+				var idx = r*gameState.map.width+c;
+				if (gameState.map.fogOfWar[idx] != 0) {
+					Building.prototype.render.call(this, g);
+					return;
+				}
+			}
+		}
+	}
+}
 
 function Castle(row, col, team) {
 	Building.call(this, 128, 640);
@@ -121,7 +165,6 @@ function Castle(row, col, team) {
 }
 
 Castle.prototype = Object.create(Tower.prototype);
-
 
 function Farm(row, col, team) {
 	Building.call(this, 64, 128);
@@ -148,6 +191,10 @@ function Farm(row, col, team) {
 
 Farm.prototype = Object.create(Building.prototype);
 
+Farm.prototype.render = function(g) {
+	Tower.prototype.render.call(this, g);
+}
+
 Farm.prototype.createSnapshot = function() {
 	PigRanch.prototype.createSnapshot.call(this);
 }
@@ -164,6 +211,7 @@ Farm.prototype.update = function(flock, map) {
 	}
 	this.lastProduce = this.updateCount;
 	gameState.coins[this.team] += this.coinsToHarvest;
+	if (!gameState.isRedoing) gameState.numbers.push(new RenderableNumber(this.pos, this.coinsToHarvest, 22, 'green'));
 }
 
 
@@ -209,6 +257,12 @@ function Fence(row, col, team) {
 }
 
 Fence.prototype = Object.create(Building.prototype);
+
+
+Fence.prototype.render = function(g) {
+	Tower.prototype.render.call(this, g);
+}
+
 
 Fence.prototype.canInteract = function(flock) {
 	// can't attack fence if it is not blocking the pig
@@ -258,6 +312,12 @@ function PigRanch(row, col, team) {
 
 PigRanch.prototype = Object.create(Building.prototype);
 
+
+PigRanch.prototype.render = function(g) {
+	Tower.prototype.render.call(this, g);
+}
+
+
 PigRanch.prototype.update = function(flock, map) {
 	Building.prototype.update.call(this, flock, map);
 	if (!this.isAlive) return;
@@ -266,8 +326,7 @@ PigRanch.prototype.update = function(flock, map) {
 		return;
 	}
 	if (gameState.coins[this.team] < this.productPrice) return;
-	gameState.coins[this.team] -= this.productPrice;
-	this.lastProduce = this.updateCount;
+	
 
 	var exitPoints = [[2, 0], [2, 1], 
 					  [-1, 0], [-1, 1],
@@ -279,8 +338,11 @@ PigRanch.prototype.update = function(flock, map) {
 		if (r < 0 || c < 0 || r >= gameState.map.height || c >= gameState.map.width) continue;
 		if (gameState.map.data[r*gameState.map.width+c] == 1) {
 			for (var j = 0; j < this.pigsPerProduction; ++j) {
-				gameState.flocks.push(new this.product(new Vec2((c+0.5)*gameState.map.size, (r+0.5)*gameState.map.size), this.team));
+				gameState.coins[this.team] -= this.productPrice;
+				this.lastProduce = this.updateCount;
 				gameState.numberOfFlocks[this.team]++;
+				gameState.flocks.push(new this.product(new Vec2((c+0.5)*gameState.map.size, (r+0.5)*gameState.map.size), this.team));
+				if (!gameState.isRedoing) gameState.numbers.push(new RenderableNumber(this.pos, this.productPrice, 22, 'red'));
 			}
 			return;
 		}
@@ -338,6 +400,10 @@ function Throne(row, col, team) {
 Throne.prototype = Object.create(Building.prototype);
 
 
+Throne.prototype.render = function(g) {
+	Tower.prototype.render.call(this, g);
+}
+
 
 function Arrow(owner, target, damage) {
 	FlockPrite.call(this, 0, owner.pos.copy(), 32);
@@ -354,6 +420,10 @@ function Arrow(owner, target, damage) {
 }
 
 Arrow.prototype = Object.create(FlockPrite.prototype);
+
+Arrow.prototype.render = function(g) {
+	Pig.prototype.render.call(this, g);
+}
 
 Arrow.prototype.update = function() {
 	this.updateCount++;
