@@ -270,7 +270,7 @@ function startGame() {
 		}
 
 		if (!gameState.isGameOver) {
-			testModule();
+			// testModule();
 			handleCommands();
 			updateGame();
 		}
