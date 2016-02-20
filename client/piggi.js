@@ -335,7 +335,7 @@ function createNewGame(mid) {
 		thrones : [],
 		ranchTier : [1, 1],
 		towerTier : [1, 1],
-		coins : [600, 600],
+		coins : [10, 10],
 
 		lastSynchronized : -1,
 		lastSent : 0,
@@ -541,8 +541,7 @@ function updateGame() {
 	if (clientState.isSinglePlayer) {
 		if (!gameState.thrones[0].isAlive) {
 			gameState.declaredVictory[1] = true;
-		}
-		if (!gameState.thrones[1].isAlive) {
+		} else if (!gameState.thrones[1].isAlive) {
 			gameState.declaredVictory[0] = true;
 		}
 		if (gameState.declaredVictory[0] || gameState.declaredVictory[1]) {
@@ -555,16 +554,34 @@ function updateGame() {
 
 	// victory check must be on the next timestep
 	var other = (clientState.team + 1)%2;
-	if (!gameState.thrones[other].isAlive && !gameState.madeDeclaration) {
-		gameState.madeDeclaration = true;
-		issueCommand(COMMAND.VICTORY, [clientState.team]);
-	}
+	// if (!gameState.thrones[other].isAlive && !gameState.madeDeclaration) {
+	// 	gameState.madeDeclaration = true;
+	// 	issueCommand(COMMAND.VICTORY, [clientState.team]);
+	// }
 
 	if (gameState.snapshot) {
-		if (gameState.snapshot.declaredVictory[0] || gameState.snapshot.declaredVictory[1]) {
+		if (!gameState.thrones[0].snapshot.isAlive || !gameState.thrones[1].snapshot.isAlive) {
+			var winner = -1;
+			for (var i = 0; i < gameState.thrones.length; ++i) {
+				if(!gameState.thrones[i].snapshot.isAlive) {
+					if (winner == -1) {
+						winner = i;
+					} else {
+						if (gameState.thrones[winner].snapshot.timeOfDeath > gameState.thrones[i].snapshot.timeOfDeath) {
+							winner = i;
+						}
+					}
+				}
+			}
+			gameState.declaredVictory[winner] = true;
+			gameState.declaredVictory[(winner+1)%2] = false;
 			gameOver();
 			return;
 		}
+		// if (gameState.snapshot.declaredVictory[0] || gameState.snapshot.declaredVictory[1]) {
+		// 	gameOver();
+		// 	return;
+		// }
 	}
 }
 
