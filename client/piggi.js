@@ -561,20 +561,20 @@ function updateGame() {
 
 	if (gameState.snapshot) {
 		if (!gameState.thrones[0].snapshot.isAlive || !gameState.thrones[1].snapshot.isAlive) {
-			var winner = -1;
+			var loser = -1;
 			for (var i = 0; i < gameState.thrones.length; ++i) {
 				if(!gameState.thrones[i].snapshot.isAlive) {
-					if (winner == -1) {
-						winner = i;
+					if (loser == -1) {
+						loser = i;
 					} else {
-						if (gameState.thrones[winner].snapshot.timeOfDeath > gameState.thrones[i].snapshot.timeOfDeath) {
-							winner = i;
+						if (gameState.thrones[loser].snapshot.timeOfDeath > gameState.thrones[i].snapshot.timeOfDeath) {
+							loser = i;
 						}
 					}
 				}
 			}
-			gameState.declaredVictory[winner] = true;
-			gameState.declaredVictory[(winner+1)%2] = false;
+			gameState.declaredVictory[loser] = false;
+			gameState.declaredVictory[(loser+1)%2] = true;
 			gameOver();
 			return;
 		}

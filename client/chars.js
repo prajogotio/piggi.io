@@ -92,7 +92,7 @@ function Tower(row, col, team) {
 	this.attackRadius = 300;
 	this.ATTACK_DELAY = 200/CONSTANTS.SCALER;
 	this.healthPoints = this.maxHealthPoints = 500;
-	this.strength = 100;
+	this.strength = 90;
 	this.team = team;
 	this.MAX_INTERACTION = 12;
 
@@ -118,8 +118,8 @@ Tower.prototype.update = function(flock, map) {
 		}
 	}
 
-	for (var i = Math.max(0,this.row-6); i <= Math.min(this.row+6,gameState.map.height); ++i) {
-		for (var j = Math.max(0, this.col-6); j <= Math.min(this.col+6,gameState.map.width); ++j) {
+	for (var i = Math.max(0,this.row-3); i <= Math.min(this.row+3,gameState.map.height); ++i) {
+		for (var j = Math.max(0, this.col-3); j <= Math.min(this.col+3,gameState.map.width); ++j) {
 			var entry = gameState.map.entry[i*gameState.map.width+j];
 			if (entry != null && entry.isAlive && entry.team != this.team) {
 				gameState.arrows.push(new this.weapon(this, entry, this.strength));
