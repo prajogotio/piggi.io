@@ -118,8 +118,8 @@ Tower.prototype.update = function(flock, map) {
 		}
 	}
 
-	for (var i = Math.max(0,this.row-3); i <= Math.min(this.row+3,gameState.map.height); ++i) {
-		for (var j = Math.max(0, this.col-3); j <= Math.min(this.col+3,gameState.map.width); ++j) {
+	for (var i = Math.max(0,this.row-3); i < Math.min(this.row+5,gameState.map.height); ++i) {
+		for (var j = Math.max(0, this.col-3); j < Math.min(this.col+5,gameState.map.width); ++j) {
 			var entry = gameState.map.entry[i*gameState.map.width+j];
 			if (entry != null && entry.isAlive && entry.team != this.team) {
 				gameState.arrows.push(new this.weapon(this, entry, this.strength));
