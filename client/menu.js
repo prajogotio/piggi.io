@@ -197,7 +197,7 @@ PriceMenuIcon.prototype.onclick = function() {
 
 PriceMenuIcon.prototype.render = function(g) {
 	MenuIcon.prototype.render.call(this, g);
-	if (this.state != 'LOCKED') this.renderPrice(g, PRICES[this.commandType]);
+	if (this.state != 'LOCKED' && !this.isLocked) this.renderPrice(g, PRICES[this.commandType]);
 }
 
 PriceMenuIcon.prototype.renderPrice = function(g, price) {
@@ -302,20 +302,20 @@ UpgradeIcon.prototype.update = function() {
 		this.state = 'UNCLICKABLE';
 		return;
 	}
-	var smaller = 1e9;
-	if (gameState.towerTier[clientState.team]==1) {
-		smaller = Math.min(smaller, PRICES['UPGRADE_TOWER']);
-	}
+	// var smaller = 1e9;
+	// if (gameState.towerTier[clientState.team]==1) {
+	// 	smaller = Math.min(smaller, PRICES['UPGRADE_TOWER']);
+	// }
 
-	if (gameState.ranchTier[clientState.team]==1) {
-		smaller = Math.min(smaller, PRICES['UPGRADE_PIG_RANCH']);
-	}
+	// if (gameState.ranchTier[clientState.team]==1) {
+	// 	smaller = Math.min(smaller, PRICES['UPGRADE_PIG_RANCH']);
+	// }
 
-	if (smaller > gameState.coins[clientState.team]) {
-		this.state = 'UNCLICKABLE';
-	} else {
+	// if (smaller > gameState.coins[clientState.team]) {
+	// 	this.state = 'UNCLICKABLE';
+	// } else {
 		this.state = 'INACTIVE';
-	}
+	// }
 }
 
 
@@ -327,6 +327,7 @@ function CastleIcon(x, y, size) {
 }
 CastleIcon.prototype = Object.create(PriceMenuIcon.prototype);
 CastleIcon.prototype.update = function() {
+	if (this.state == 'LOCKED') return;
 	if (gameState.towerTier[clientState.team] == 1) {
 		this.state = 'UNCLICKABLE';
 		return;
@@ -343,6 +344,7 @@ function PigHQIcon(x, y, size) {
 }
 PigHQIcon.prototype = Object.create(PriceMenuIcon.prototype);
 PigHQIcon.prototype.update = function() {
+	if (this.state == 'LOCKED') return;
 	if (gameState.ranchTier[clientState.team] == 1) {
 		this.state = 'UNCLICKABLE';
 		return;
@@ -359,6 +361,7 @@ function GardenIcon(x, y, size) {
 }
 GardenIcon.prototype = Object.create(PriceMenuIcon.prototype);
 GardenIcon.prototype.update = function() {
+	if (this.state == 'LOCKED') return;
 	if (gameState.ranchTier[clientState.team] == 1) {
 		this.state = 'UNCLICKABLE';
 		return;
@@ -375,6 +378,7 @@ function WallIcon(x, y, size) {
 }
 WallIcon.prototype = Object.create(PriceMenuIcon.prototype);
 WallIcon.prototype.update = function() {
+	if (this.state == 'LOCKED') return;
 	if (gameState.towerTier[clientState.team] == 1) {
 		this.state = 'UNCLICKABLE';
 		return;
