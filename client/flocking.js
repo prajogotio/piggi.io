@@ -8,7 +8,7 @@ function Flocker(mass, pos, radius) {
 	this.DEAD = 4;
 
 	// behavior parameter
-	this.FLOCK_AGGRESIVENESS = 200;
+	this.FLOCK_AGGRESIVENESS = 400;
 	this.BUILDING_AGGRESIVENESS = 640;
 	this.RADIUS_OF_ACCEPTANCE = 4;
 	this.MAXIMUM_SPEED = 1.5 * CONSTANTS.SCALER;
@@ -36,7 +36,7 @@ function Flocker(mass, pos, radius) {
 
 	// AI control
 	this.ENVIRONMENT_CHECK_DELAY = 80;
-	this.lastEnvironmentCheck = -10;
+	this.lastEnvironmentCheck = -80;
 	this.updateCount = 0;
 
 
@@ -62,6 +62,8 @@ function Flocker(mass, pos, radius) {
 
 	this.INTEGRATE_ONLY_MAX_COUNTER = 10 / CONSTANTS.SCALER;
 	this.integrateOnlyCounter = 10 / CONSTANTS.SCALER;
+
+	this.checkSurrounding();
 }
 
 Flocker.prototype.seek = function() {
@@ -332,11 +334,23 @@ Flocker.prototype.handleLockOnTarget = function(flock, map) {
 				if (this.updateCount - this.lastAttack > this.ATTACK_DELAY) {
 					this.lastAttack = this.updateCount + this.sprites[this.ATTACKING].DELTA_PER_FRAME*this.sprites[this.ATTACKING].numOfFrames;
 					this.sprites[this.ATTACKING].reset();
+					if (Math.random() > 0.5) {
+						playSound('music/snort.wav', 0.05 * volumeFromDistance(this.pos.x, this.pos.y));
+					}
 				}
 				else if (this.updateCount - this.lastAttack == -2*this.sprites[this.ATTACKING].DELTA_PER_FRAME) {
 					// on the last frame of attack animation, reduce enemy hitpoints
 					this.lockOnTarget.receiveDamage(this.strength);
 					this.velocity = this.velocity.times(0);
+					if (!this.lockOnTarget.MOVING_TARGET) {
+						if (Math.random() > 0.5){
+							playSound('music/thump.wav', 0.2 * volumeFromDistance(this.pos.x, this.pos.y));
+						} else {
+							playSound('music/thud.wav', 0.2 * volumeFromDistance(this.pos.x, this.pos.y));
+						}
+					} else {
+						playSound('music/hit-1.wav', 0.2 * volumeFromDistance(this.pos.x, this.pos.y));
+					}
 				}
 			} 
 
@@ -346,6 +360,9 @@ Flocker.prototype.handleLockOnTarget = function(flock, map) {
 					this.lockOnTarget.receiveDamage(this.strength);
 					this.lastAttack = this.updateCount;
 					this.velocity = this.velocity.times(0);
+					if (Math.random() > 0.5) {
+						playSound('music/snort.wav', 0.05 * volumeFromDistance(this.pos.x, this.pos.y));
+					}
 				}
 			}
 		} else if (!this.target ) {

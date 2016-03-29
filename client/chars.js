@@ -12,6 +12,10 @@ function Pig(pos, team) {
 	this.team = team;
 	this.healthPoints = this.maxHealthPoints = 200;
 	this.strength = 30;
+
+	if (clientState.team == this.team) {
+		playSound('music/oink.wav', volumeFromDistance(pos.x, pos.y) * 0.1);
+	}
 }
 
 Pig.prototype = Object.create(FlockPrite.prototype);
@@ -78,6 +82,10 @@ function Boar(pos, team) {
 	this.healthPoints = this.maxHealthPoints = 1200;
 	this.strength = 180;
 	this.ATTACK_DELAY = 60;
+
+	if (clientState.team == this.team) {
+		playSound('music/oink.wav', volumeFromDistance(pos.x, pos.y) * 0.1);
+	}
 }
 
 Boar.prototype = Object.create(Pig.prototype);
@@ -242,7 +250,7 @@ Garden.prototype = Object.create(Farm.prototype);
 
 
 function Fence(row, col, team) {
-	Building.call(this, 64, 100);
+	Building.call(this, 64, 240);
 	this.setSprite(this.NORMAL, new Sprite(asset.images[addSuffix("asset/fence.png",team)], 0, 0, 128, 128, 1, 100));
 	this.setSprite(this.DEAD, new Sprite(asset.images[addSuffix("asset/fence_death.png",team)], 0, 0, 128, 128, 1, 100));
 	registerBuildingToMap(this, gameState.map, row, col);
@@ -267,7 +275,7 @@ Fence.prototype.render = function(g) {
 Fence.prototype.canInteract = function(flock) {
 	// can't attack fence if it is not blocking the pig
 	// from reaching the target
-	return Building.prototype.canInteract.call(this, flock) && (flock.lockOnTarget != null && flock.targetStack.length == 0);
+	return Building.prototype.canInteract.call(this, flock) && flock.targetStack.length == 0;
 }
 
 
@@ -417,6 +425,8 @@ function Arrow(owner, target, damage) {
 	this.orientation = getAngle(target.pos.minus(owner.pos));
 	this.updateCount = 0;
 	this.maxDelta = 40/CONSTANTS.SCALER;
+
+	playSound('music/arrow.wav', volumeFromDistance(owner.pos.x, owner.pos.y));
 }
 
 Arrow.prototype = Object.create(FlockPrite.prototype);
@@ -434,11 +444,15 @@ Arrow.prototype.update = function() {
 	var DEAD_MARGIN = 17;
 	this.pos = this.destination.minus(this.startPoint).times(Math.min(this.updateCount,this.maxDelta-DEAD_MARGIN)/(this.maxDelta-DEAD_MARGIN)).plus(this.startPoint);
 	
+	
+
 	if (this.updateCount+DEAD_MARGIN >= this.maxDelta) {
+		if (this.state != this.DEAD) playSound('music/arrow_impact.wav', 0.3 * volumeFromDistance(this.pos.x, this.pos.y));
 		this.state = this.DEAD;
 		this.target.receiveDamage(this.damage);
 		// damage delivered
 		this.damage = 0;
+
 	}
 	if (this.updateCount >= this.maxDelta) {
 		this.isAlive = false;

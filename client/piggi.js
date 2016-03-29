@@ -64,9 +64,29 @@ var asset = {
 	],
 	images : {},
 	assetSoundList : [
+		"music/bg1.mp3",
+		"music/bg3.mp3",
+		"music/bg4.mp3",
+		"music/battle-1.mp3",
+		"music/battle-2.mp3",
+		"music/battle-3.mp3",
+	],
+	assetAudioList : [
+		"music/building.wav",
+		"music/oink.wav",
+		"music/start.mp3",
+		"music/destroy.wav",
+		"music/arrow.wav",
+		"music/arrow_impact.wav",
+		"music/thump.wav",
+		"music/snort.wav",
+		"music/thud.wav",
+		"music/hit-1.wav",
 	],
 	sounds : {},
+	audio : {},
 	loadedAssetCount : 0,
+	audioContext : null,
 };
 
 var COMMAND = {
@@ -91,7 +111,7 @@ var PRICES = {
 	'BUILD_TOWER' : 50,
 	'BUILD_FARM' : 5,
 	'BUILD_PIG_RANCH' : 50,
-	'BUILD_FENCE' : 5,
+	'BUILD_FENCE' : 3,
 	'UPGRADE_TOWER' : 600,
 	'UPGRADE_PIG_RANCH' : 800,
 	'BUILD_CASTLE' : 240,
@@ -191,12 +211,44 @@ function initializeAsset() {
 		})(asset.assetImageList[i]);
 		img.src = asset.assetImageList[i];
 	}
+
+	asset.audioContext = new (AudioContext || webkitAudioContext)();
+
+	for (var i = 0; i < asset.assetAudioList.length; ++i) {
+		var url = asset.assetAudioList[i];
+		var request = new XMLHttpRequest();
+		request.open("GET", url, true);
+		request.responseType = "arraybuffer";
+		request.onload = (function(url, request){
+			return function() {
+				//console.log(request.response, request, url);
+				if (request.response){
+				    asset.audioContext.decodeAudioData(
+				        request.response,
+				        function(buffer) {
+				            asset.audio[url] = buffer;
+				        },
+				        function(error) {
+				            console.error('decodeAudioData error', error);
+				        }
+				    );
+				    asset.loadedAssetCount++;
+				    assetProgressHandler();
+				} else {
+
+				}
+			};
+		})(url, request);
+		request.send(null);
+	}
+	window.asset = asset;
+
 }
 
 function assetProgressHandler() {
 	var lp = document.getElementById('loading-caption');
-	lp.innerHTML = Math.floor(asset.loadedAssetCount / (asset.assetImageList.length + asset.assetSoundList.length) * 100) + '%';
-	if (asset.loadedAssetCount == asset.assetImageList.length + asset.assetSoundList.length) {
+	lp.innerHTML = Math.floor(asset.loadedAssetCount / (asset.assetImageList.length + asset.assetAudioList.length) * 100) + '%';
+	if (asset.loadedAssetCount == asset.assetImageList.length + asset.assetAudioList.length) {
 		allAssetsLoadedHandler();
 	}
 }
@@ -213,15 +265,66 @@ function allAssetsLoadedHandler() {
 	registerAppEventHandler();
 
 	startBackgroundAnimation();
+	backgroundMusicHandler();
 	appMoveToState('LOGIN_FRAME');
+
+
+	function backgroundMusicHandler() {
+		var i = 0;
+		var audio = new Audio(asset.assetSoundList[i]);
+		audio.volume = 0.10;
+		audio.play();
+
+		asset.callNextSong = function() {
+			i = (i + 1) % asset.assetSoundList.length;
+			audio.setAttribute('src', asset.assetSoundList[i]);
+			audio.currentTime = 0;
+			audio.volume = 0.10;
+			audio.play();
+		}
+
+		audio.addEventListener("ended", function(){
+			asset.callNextSong();
+		});
+
+	}
+}
+
+function playSound(audioName, volume) {
+	if (gameState.isRedoing) {
+		return;
+	}
+	var buffer = asset.audio[audioName];
+	var source = asset.audioContext.createBufferSource();
+	try {
+		source.buffer = buffer;
+	} catch (e) {
+		console.log('Error while playing sound:', e);
+	}
+	var gainNode = asset.audioContext.createGain();
+	gainNode.gain.value = volume;
+	source.connect(gainNode);
+
+	gainNode.connect(asset.audioContext.destination);
+
+	source.start(0);
+}
+
+function volumeFromDistance(x, y) {
+	var dx = Math.abs(clientState.camera[0] + clientState.canvas.width/2 - x);
+	var dy = Math.abs(clientState.camera[1] + clientState.canvas.height/2 - y);
+	var vol = Math.max(0, Math.min(1.0, 1.2 - Math.sqrt(dx*dx+dy*dy)/800));
+	return vol < 0.1 ? 0 : vol;
 }
 
 function startGame() {
+	playSound("music/start.mp3", 0.1);
+	asset.callNextSong();
 	if (gameState.scheduler) {
 		clearInterval(gameState.scheduler);
 	}
-	if (gameState.gameEventHandlerResetFunction) {
-		gameState.gameEventHandlerResetFunction();
+	if (clientState.gameEventHandlerResetFunction) {
+		clientState.gameEventHandlerResetFunction();
 	}
 
 	gameState = {};
@@ -365,7 +468,7 @@ function updateCamera() {
 	var mouse = clientState.mouse;
 	var camera = clientState.camera;
 
-	var dM = 10*CONSTANTS.SCALER;
+	var dM = 16*CONSTANTS.SCALER;
 	var margin = 4;
 	if (mouse[0] <= margin) {
 		camera[0] -= dM;
@@ -438,6 +541,7 @@ function renderGame() {
 	}
 	gameState.numbers = tmp;
 
+	// // draw path
 	// for (var i = 0; i < gameState.flocks.length; ++i) {
 	// 	if(gameState.flocks[i].lockOnTarget) {
 	// 		g.fillStyle = "red";
@@ -1025,6 +1129,7 @@ function registerGameEventHandler() {
 					clientState.state = 'NONE';
 					clientState.menuBar.reset();
 					issueCommand(clientState.currentCommand, [pos[0], pos[1], clientState.team]);
+					playSound('music/building.wav', 1.5);
 				}
 			} else if (clientState.state == 'DESTROY') {
 				var pos = computeMapLocation(x, y);
@@ -1032,6 +1137,7 @@ function registerGameEventHandler() {
 					clientState.state = 'NONE';
 					issueCommand(COMMAND.DESTROY, [pos[0], pos[1], clientState.team]);
 					clientState.menuBar.reset();
+					playSound('music/destroy.wav', 0.1);
 				}
 			}
 		}
@@ -1123,10 +1229,9 @@ function registerGameEventHandler() {
 	}
 	
 
-	
 
-	return function removeAllGameEventListener() {
-		document.removeEventListener("mousedown", mouseDownCallback);
+	return function() {
+		canvas.removeEventListener("mousedown", mouseDownCallback);
 		document.removeEventListener("keydown", keyDownHandler);
 	}
 }
@@ -1949,8 +2054,8 @@ function gameCleanUp() {
 	if(gameState.scheduler){
 		clearInterval(gameState.scheduler);
 	}
-	if (gameState.gameEventHandlerResetFunction) {
-		gameState.gameEventHandlerResetFunction();
+	if (clientState.gameEventHandlerResetFunction) {
+		clientState.gameEventHandlerResetFunction();
 	}
 	hideNoticeBox();
 }
@@ -1981,6 +2086,7 @@ function showGameOverScreen() {
 		document.getElementById("game-over-notice").style.display = 'none';
 		appMoveToState('ROOM_FRAME');
 		startBackgroundAnimation();
+		asset.callNextSong();
 	}
 
 	function keyHandler() {
@@ -1995,6 +2101,7 @@ function showGameOverScreen() {
 		document.getElementById("game-over-notice").style.display = 'none';
 		appMoveToState('ROOM_FRAME');
 		startBackgroundAnimation();
+		asset.callNextSong();
 	}
 	document.getElementById("game-over-notice").style.display = 'block';
 }
@@ -2078,12 +2185,14 @@ function hideTutorial() {
 }
 
 function startSinglePlayerGame() {
+	playSound('music/start.mp3', 0.1);
+	asset.callNextSong();
 	appMoveToState('GAME_FRAME');
 	if (gameState.scheduler) {
 		clearInterval(gameState.scheduler);
 	}
-	if (gameState.gameEventHandlerResetFunction) {
-		gameState.gameEventHandlerResetFunction();
+	if (clientState.gameEventHandlerResetFunction) {
+		clientState.gameEventHandlerResetFunction();
 	}
 
 	gameState = {};
@@ -2140,7 +2249,7 @@ function startSinglePlayerGame() {
 function updateAI() {
 	var r = gameState.thrones[1].row;
 	var empty = false;
-	if (gameState.timestep % 30) return;
+	if (gameState.timestep % 400) return;
 	for (var i = gameState.map.height; i >= 0; --i) {
 		for (var j = 0; j < gameState.map.width; j++) {
 			if (!isLandOccupied(i-1, j, 2, 1)) {

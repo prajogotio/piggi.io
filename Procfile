@@ -1,1 +1,1 @@
-web: node piggi.io.js
+web: node  piggi.io.js --log-file=-

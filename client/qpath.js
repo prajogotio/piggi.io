@@ -67,7 +67,7 @@ function findPath(start, target, map, otherTargets) {
 		mark[idx] = 1;
 		par[idx] = cur.par;
 		var curDistToTarget = Math.abs(target[0]-row)+Math.abs(target[1]-col);
-		if (distToTarget >= curDistToTarget) {
+		if (distToTarget > curDistToTarget) {
 			distToTarget = curDistToTarget;
 			loc = idx;
 		}
