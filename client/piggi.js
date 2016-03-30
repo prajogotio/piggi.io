@@ -270,23 +270,24 @@ function allAssetsLoadedHandler() {
 
 
 	function backgroundMusicHandler() {
-		var i = 0;
-		var audio = new Audio(asset.assetSoundList[i]);
-		audio.volume = 0.10;
-		audio.play();
+		var i = -1;
+		var audio = null;
 
 		asset.callNextSong = function() {
+			if (audio) audio.pause();
+
 			i = (i + 1) % asset.assetSoundList.length;
-			audio.setAttribute('src', asset.assetSoundList[i]);
-			audio.currentTime = 0;
+			audio = new Audio(asset.assetSoundList[i]);
+			//audio.currentTime = 0;
 			audio.volume = 0.10;
 			audio.play();
+			audio.addEventListener("ended", function(){
+				asset.callNextSong();
+			});
 		}
 
-		audio.addEventListener("ended", function(){
-			asset.callNextSong();
-		});
-
+		asset.callNextSong();
+		
 	}
 }
 

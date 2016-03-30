@@ -20,6 +20,9 @@ app.use(express.static(__dirname + '/client'));
 app.set('port', (process.env.PORT || 3000))
 
 app.get('/', function(req, res) {
+	res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+	res.header('Expires', '-1');
+	res.header('Pragma', 'no-cache');
 	res.sendFile(__dirname + '/client/piggi.html');
 });
 
