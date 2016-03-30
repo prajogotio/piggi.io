@@ -279,7 +279,7 @@ function allAssetsLoadedHandler() {
 			i = (i + 1) % asset.assetSoundList.length;
 			audio = new Audio(asset.assetSoundList[i]);
 			//audio.currentTime = 0;
-			audio.volume = 0.10;
+			audio.volume = 0.05;
 			audio.play();
 			audio.addEventListener("ended", function(){
 				asset.callNextSong();
@@ -2250,9 +2250,9 @@ function startSinglePlayerGame() {
 function updateAI() {
 	var r = gameState.thrones[1].row;
 	var empty = false;
-	if (gameState.timestep % 400) return;
+	if (gameState.timestep % 40) return;
 	for (var i = gameState.map.height; i >= 0; --i) {
-		for (var j = 0; j < gameState.map.width; j++) {
+		for (var j = gameState.map.width-1; j >= (gameState.map.width-1)/2; --j) {
 			if (!isLandOccupied(i-1, j, 2, 1)) {
 				empty = true;
 				if(Math.random() < 0.9){
@@ -2274,6 +2274,7 @@ function updateAI() {
 				}
 				if ((gameState.AI.farms+gameState.AI.fences)/(gameState.AI.ranches+gameState.AI.towers+1) > 10) break;
 			} 
+			if ((gameState.AI.farms+gameState.AI.fences)/(gameState.AI.ranches+gameState.AI.towers+1) > 10) continue;
 			if (!isLandOccupied(i, j, 1, 1)) {
 				empty = true;
 				if (Math.random() < 0.8) {
